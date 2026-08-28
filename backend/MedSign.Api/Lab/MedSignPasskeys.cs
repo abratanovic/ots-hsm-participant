@@ -11,32 +11,108 @@ namespace MedSign.Api.Lab;
 
 public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challenges, MedSignDb db)
 {
-    // TODO: IMPLEMENT
     public CredentialCreateOptions BeginRegistration(string username, string fullName)
     {
-        throw new NotImplementedException("Excercise 1: Implement the registration ceremony. See the localhost:4300 for instructions.");
+        var options = fido2.RequestNewCredential(new RequestNewCredentialParams
+        {
+            User = new Fido2User
+            {
+                Id = RandomNumberGenerator.GetBytes(32),
+                Name = username,
+                DisplayName = fullName.Trim(),
+            },
+
+            PubKeyCredParams = [PubKeyCredParam.ES256],
+
+            AuthenticatorSelection = new Fido2AuthenticatorSelection
+            {
+                ResidentKey = ResidentKeyRequirement.Preferred,
+                UserVerification = UserVerificationRequirement.Preferred,
+            },
+
+            AttestationPreference = AttestationConveyancePreference.None,
+
+            ExcludeCredentials = [],
+        });
+
+        challenges.Issue(username, options);
+
+        return options;
     }
 
-    // TODO: IMPLEMENT
     public async Task<RegisteredPasskey> CompleteRegistrationAsync(
         string username,
         PasskeyRegistration credential)
     {
-        throw new NotImplementedException("Excercise 1: Implement the registration ceremony. See the localhost:4300 for instructions.");
+        var options = challenges.ConsumeRegistration(username)
+            ?? throw new InvalidOperationException(
+                "There is no outstanding registration ceremony for that username. It has already "
+                + "been used, or it expired. Start registration again -- a challenge is single-use "
+                + "precisely so that a captured one cannot be replayed.");
+
+        var registered = await fido2.MakeNewCredentialAsync(
+            new MakeNewCredentialParams
+            {
+                AttestationResponse = PasskeyWire.ToRaw(credential),
+                OriginalOptions = options,
+                IsCredentialIdUniqueToUserCallback = async (unique, _) =>
+                    !await db.PasskeyCredentials.AnyAsync(
+                        existing => existing.CredentialId == unique.CredentialId),
+            });
+
+        return new RegisteredPasskey(
+            options.User.Id,
+            new VerifiedCredential(
+                registered.Id,
+                CosePublicKey.ToPoint(registered.PublicKey),
+                registered.SignCount));
     }
 
-    // TODO: IMPLEMENT
     public async Task<AssertionOptions> BeginSignInAsync(string username)
     {
-        throw new NotImplementedException("Excercise 1: Implement the sign-in ceremony. See the localhost:4300 for instructions.");
+        var user = await FindAccountAsync(username);
+
+        var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
+        {
+            AllowedCredentials = user is null ? [] : [.. user.Credentials.Select(Descriptor)],
+            UserVerification = UserVerificationRequirement.Preferred,
+        });
+
+        challenges.Issue(username, options);
+
+        return options;
     }
 
-    // TODO: IMPLEMENT
     public async Task<VerifiedAssertion?> CompleteSignInAsync(
         string username,
         PasskeyAssertion? assertion)
     {
-        throw new NotImplementedException("Excercise 1: Implement the sign-in ceremony. See the localhost:4300 for instructions.");
+        var options = challenges.ConsumeAssertion(username);
+
+        var user = await FindAccountAsync(username);
+        var stored = FindCredential(user, assertion?.RawId);
+
+        if (options is null || user is null || stored is null)
+        {
+            return null;
+        }
+
+        var result = await fido2.MakeAssertionAsync(
+            new MakeAssertionParams
+            {
+                AssertionResponse = PasskeyWire.ToRaw(assertion!),
+
+                OriginalOptions = options,
+
+                StoredPublicKey = CosePublicKey.FromPoint(stored.PublicKeyPoint),
+
+                StoredSignatureCounter = (uint)stored.SignCount,
+
+                IsUserHandleOwnerOfCredentialIdCallback = (owner, _) => Task.FromResult(
+                    CryptographicOperations.FixedTimeEquals(owner.UserHandle, user.Handle)),
+            });
+
+        return new VerifiedAssertion(user, stored, result.SignCount);
     }
 
     private Task<User?> FindAccountAsync(string username) =>
