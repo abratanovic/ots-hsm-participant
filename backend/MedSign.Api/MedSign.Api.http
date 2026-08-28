@@ -1,0 +1,26 @@
+@host = http://localhost:5000
+
+### The public key, and whether there is one at all. The key is created at startup,
+### so this answers both questions: 404 means the active Provider has none yet.
+### Paste it into jwt.io next to a token, and watch the kid change when signing
+### moves to the YubiHSM.
+GET {{host}}/.well-known/jwks.json
+
+### Registration and sign-in are passkey ceremonies: they need an authenticator and
+### a secure origin, so they cannot be driven from here. Use the Workshop Frontend.
+### These two show the shape only -- the ceremony steps in between are the browser's.
+###
+###   POST /api/auth/registration-challenge  {username, fullName, role}
+###   POST /api/auth/registration            {username, fullName, role, credential}
+###   POST /api/auth/sign-in-challenge       {username}
+###   POST /api/auth/sign-in                 {username, assertion}
+
+### What a challenge looks like. Safe to call: it creates nothing.
+POST {{host}}/api/auth/registration-challenge
+Content-Type: application/json
+
+{
+  "username": "ada@clinic.example",
+  "fullName": "Ada Lovelace",
+  "role": "doctor"
+}

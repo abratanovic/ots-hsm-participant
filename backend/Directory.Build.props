@@ -1,0 +1,48 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      Send obj/ and bin/ somewhere other than the source tree.
+
+      This has to live in Directory.Build.props, not in the environment: MSBuild
+      reads ArtifactsPath as an ordinary property either way, but restore works
+      out where to put project.assets.json during early evaluation, before an
+      environment-supplied value has taken effect. Set it only in compose and
+      the build output lands in /artifacts while restore still litters
+      MedSign.Api/obj and MedSign.Tests/obj.
+
+      Keeping those directories out of the tree is not tidiness. The tree is
+      bind-mounted from the host and watched by polling, and dotnet watch's
+      poller dies outright if files appear underneath it mid-enumeration. Build
+      output is by far the largest source of such files. See run-backend.sh.
+
+      MEDSIGN_ARTIFACTS is what the container passes in, but it cannot be the
+      only rule: not every evaluation of these projects inherits it. dotnet
+      watch scans the project graph in its own MSBuild invocation, and that one
+      arrives without it, which was enough to keep dropping generated files back
+      into the watched tree. Falling back to the mounted volume when it is
+      simply there is the part that cannot be lost.
+
+      Outside the container neither applies, and there is no watcher to protect,
+      so a local artifacts folder is fine.
+    -->
+    <ArtifactsPath Condition="'$(MEDSIGN_ARTIFACTS)' != ''">$(MEDSIGN_ARTIFACTS)</ArtifactsPath>
+    <ArtifactsPath Condition="'$(ArtifactsPath)' == '' AND Exists('/artifacts')">/artifacts</ArtifactsPath>
+
+    <!--
+      Last resort, and the reason it is not simply a folder next to this file:
+      on Linux we are in the workshop container, where a folder next to this
+      file is inside the bind mount the watcher is polling. Somewhere in dotnet
+      watch's own project evaluation both rules above still come up empty, and a
+      handful of generated files kept reappearing in the tree because of it.
+      Sending the fallback to /tmp ends the whole class of problem rather than
+      chasing the last evaluation that escapes.
+
+      On Windows there is no watcher and no /tmp worth using, so a local folder
+      is the right answer there.
+    -->
+    <ArtifactsPath Condition="'$(ArtifactsPath)' == '' AND '$(OS)' != 'Windows_NT'">/tmp/medsign-artifacts</ArtifactsPath>
+    <ArtifactsPath Condition="'$(ArtifactsPath)' == ''">$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+</Project>

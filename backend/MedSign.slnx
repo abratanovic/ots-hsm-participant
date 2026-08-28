@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MedSign.Api/MedSign.Api.csproj" />
+  <Project Path="MedSign.Tests/MedSign.Tests.csproj" />
+</Solution>

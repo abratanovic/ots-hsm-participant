@@ -1,0 +1,111 @@
+<Project>
+
+  <!--
+    The test gate.
+
+    MedSign.Api cannot finish a build until MedSign.Tests passes, and dotnet
+    watch rebuilds before it (re)starts the app. That one rule covers both
+    halves of "the backend must not run on failing tests": a cold
+    `docker compose up` stops here, and so does every save afterwards.
+
+    Three things make it safe to hang this off Build:
+
+      * MedSignSkipTestGate: building MedSign.Tests also builds MedSign.Api,
+        which would come straight back into this target. Passing the property
+        into that nested build suppresses the gate there, so the suite runs once.
+
+      * MSBuildProjectName: this file is imported by every project beside it,
+        MedSign.Tests included. Without the check the test project would gate on
+        itself.
+
+      * MEDSIGN_TEST_GATE: an escape hatch. Setting it to "off" in the
+        environment builds without the gate, for the rare case where someone
+        needs the backend up while the suite is red.
+  -->
+
+  <PropertyGroup>
+    <!-- Shared with the coach dashboard. Absent outside the container, in which
+         case the writes below are skipped and the gate behaves as it always did. -->
+    <MedSignStatusDir Condition="'$(MedSignStatusDir)' == ''">$(MEDSIGN_STATUS_DIR)</MedSignStatusDir>
+    <MedSignStatusDir Condition="'$(MedSignStatusDir)' == ''">/status</MedSignStatusDir>
+
+    <MedSignGateEnabled>false</MedSignGateEnabled>
+    <MedSignGateEnabled Condition="'$(MSBuildProjectName)' == 'MedSign.Api'
+                                   AND '$(MedSignSkipTestGate)' != 'true'
+                                   AND '$(MEDSIGN_TEST_GATE)' != 'off'">true</MedSignGateEnabled>
+  </PropertyGroup>
+
+  <!--
+    dotnet watch only watches the files of the project it runs and the projects
+    that project references. MedSign.Api does not reference MedSign.Tests, so
+    without this a fix to a test would sit there until something else was saved.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MedSign.Api'">
+    <Watch Include="$(MSBuildThisFileDirectory)MedSign.Tests/**/*.cs" />
+  </ItemGroup>
+
+  <!--
+    Marks the dashboard "building" before the compiler runs. If compilation
+    fails, the gate below never runs, so the state stays on "building" and the
+    dashboard reads the compiler errors out of build.log instead. That is how it
+    tells "your code does not compile" apart from "your tests are red".
+  -->
+  <Target Name="MedSignGateBuilding"
+          BeforeTargets="CoreCompile"
+          Condition="'$(MedSignGateEnabled)' == 'true' AND Exists('$(MedSignStatusDir)')">
+    <WriteLinesToFile File="$(MedSignStatusDir)/state.json"
+                      Lines="{ &quot;state&quot;: &quot;building&quot; }"
+                      Overwrite="true" />
+  </Target>
+
+  <Target Name="MedSignTestGate"
+          AfterTargets="Build"
+          Condition="'$(MedSignGateEnabled)' == 'true'">
+
+    <!--
+      The test project is built here rather than by `dotnet test`, purely to get
+      TargetOutputs back: the gate runs the assembly directly, because the xUnit
+      console runner takes -result-ctrf (the JSON report the dashboard reads) and
+      the .NET 10 `dotnet test` front end will not pass that flag through.
+      A compile error in the tests fails here, which is correct.
+    -->
+    <!--
+      Restore first, and as its own invocation: MSBuild will not accept
+      "Restore;Build" in one call, because Build has to be evaluated after the
+      assets file exists. Nothing else restores this project, since dotnet watch
+      only knows about MedSign.Api and what it references, so on a cold start
+      the build would otherwise stop at NETSDK1004.
+    -->
+    <MSBuild Projects="$(MSBuildThisFileDirectory)MedSign.Tests/MedSign.Tests.csproj"
+             Targets="Restore"
+             Properties="MedSignSkipTestGate=true" />
+
+    <MSBuild Projects="$(MSBuildThisFileDirectory)MedSign.Tests/MedSign.Tests.csproj"
+             Targets="Build"
+             Properties="MedSignSkipTestGate=true">
+      <Output TaskParameter="TargetOutputs" ItemName="_MedSignTestAssembly" />
+    </MSBuild>
+
+    <!--
+      The script owns the reporting, because it can write straight to the
+      console; everything MSBuild prints here would be either swallowed by
+      dotnet watch's quiet verbosity or mangled by its error formatting.
+      All this task needs back is the exit code, and IgnoreExitCode keeps Exec
+      from adding an MSB3073 warning on top of the report.
+    -->
+    <Exec Command="sh &quot;$(MSBuildThisFileDirectory)test-gate.sh&quot; &quot;%(_MedSignTestAssembly.Identity)&quot;"
+          WorkingDirectory="$(MSBuildThisFileDirectory)"
+          EnvironmentVariables="MEDSIGN_STATUS_DIR=$(MedSignStatusDir)"
+          IgnoreExitCode="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_GateExit" />
+    </Exec>
+
+    <!-- Fails the build, which is what keeps the app from launching. -->
+    <Error Condition="'$(_GateExit)' != '0'"
+           Text="MedSign test gate: the suite failed (see the report above). The backend was not started." />
+
+  </Target>
+
+</Project>

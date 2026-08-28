@@ -1,0 +1,56 @@
+services:
+  backend:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    container_name: medsign-backend
+    working_dir: /src
+    command: bash /src/run-backend.sh
+    stop_grace_period: 8s
+    environment:
+      ASPNETCORE_URLS: http://+:5000
+      ASPNETCORE_ENVIRONMENT: Development
+
+      ConnectionStrings__MedSign: Data Source=/app/data/medsign.db
+
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+
+      MEDSIGN_ARTIFACTS: /artifacts
+
+      MEDSIGN_STATUS_DIR: /status
+
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "1"
+
+      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "1"
+      DOTNET_NOLOGO: "1"
+    volumes:
+      - ./backend:/src
+      - ./data:/app/data
+      - ./status:/status
+      - artifacts:/artifacts
+      - nuget:/root/.nuget/packages
+    ports:
+      - "5000:5000"
+    tty: true
+    stdin_open: true
+
+  frontend:
+    image: abratanov/medsign-frontend:latest
+    container_name: medsign-frontend
+    ports:
+      - "4200:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  coach:
+    image: abratanov/medsign-coach:latest
+    container_name: medsign-coach
+    ports:
+      - "4300:80"
+    volumes:
+      - ./status:/usr/share/nginx/html/status:ro
+    restart: unless-stopped
+
+volumes:
+  nuget:
+
+  artifacts:
