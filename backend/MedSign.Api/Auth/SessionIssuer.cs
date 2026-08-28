@@ -1,6 +1,5 @@
 using MedSign.Api.Data;
 using MedSign.Api.Hsm;
-using MedSign.Api.Lab;
 
 namespace MedSign.Api.Auth;
 

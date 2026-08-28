@@ -5,7 +5,7 @@ using MedSign.Api.Auth;
 using MedSign.Api.Data;
 using MedSign.Api.Hsm;
 
-namespace MedSign.Api.Lab;
+namespace MedSign.Api.Data;
 
 public sealed class JwtIssuer(Claims claims, ISigningProvider provider)
 {

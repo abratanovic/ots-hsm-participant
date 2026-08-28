@@ -5,7 +5,6 @@ using MedSign.Api.Auth;
 using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
 using MedSign.Api.Hsm;
-using MedSign.Api.Lab;
 using MedSign.Api.Signing;
 using Fido2NetLib;
 

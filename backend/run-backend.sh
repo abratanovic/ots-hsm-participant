@@ -46,6 +46,20 @@ fi
 # and the projects it references.
 dotnet restore MedSign.slnx || exit 1
 
+# Then build once, before anything is watching.
+#
+# This is the second half of the trigger removal. A build writes a handful of
+# generated files (AssemblyInfo.cs, GlobalUsings.g.cs and friends) into an
+# artifacts folder beside the projects, and no amount of ArtifactsPath
+# redirection reaches the evaluation that puts them there. They are only ever
+# *created* once and rewritten thereafter, so doing it now, with no watcher
+# running, means the watcher only ever sees a tree that has stopped growing.
+#
+# It also gives the dashboard a first result before the app is up, and leaves
+# the first save with nothing to compile but the change itself. Failures are not
+# fatal here: the watch loop below reports them properly.
+dotnet build MedSign.slnx --no-restore || true
+
 shutting_down=0
 stop() {
     shutting_down=1
