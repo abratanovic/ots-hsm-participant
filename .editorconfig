@@ -1,0 +1,7 @@
+# Keeps editors from undoing .gitattributes. Same reason: these scripts are run
+# by bash inside the container, where a carriage return is a syntax error.
+root = true
+
+[*.sh]
+end_of_line = lf
+insert_final_newline = true

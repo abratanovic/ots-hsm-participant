@@ -1,0 +1,5 @@
+# The shell scripts run inside a Linux container. A CRLF line ending turns the
+# first line into `#!/usr/bin/env bash\r`, and bash then reports
+# "$'\r': command not found" and dies. core.autocrlf=true on Windows will do
+# exactly that on checkout unless these are pinned.
+*.sh text eol=lf

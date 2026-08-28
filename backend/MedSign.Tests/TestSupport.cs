@@ -1,6 +1,9 @@
+using System.Security.Cryptography;
+using Fido2NetLib;
 using MedSign.Api.Auth;
 using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
+using MedSign.Api.Lab;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -79,6 +82,85 @@ public static class Build
         DisplayName = "Dr. Helena Novak",
         Role = Roles.Doctor,
     };
+
+    /// <summary>A stored passkey, shaped the way a finished registration leaves it.</summary>
+    public static PasskeyCredential Credential(
+        byte[] credentialId,
+        byte[] publicKeyPoint,
+        long signCount = 0) => new()
+    {
+        CredentialId = credentialId,
+        PublicKeyPoint = publicKeyPoint,
+        SignCount = signCount,
+        Transports = "internal",
+        CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+    };
+}
+
+/// <summary>
+/// MedSignPasskeys wired the way Program.cs wires it, with the pieces around it
+/// left reachable so a test can look at what the exercise did: the challenge
+/// store it was supposed to hold the ceremony in, and the database it was
+/// supposed to consult.
+/// </summary>
+public sealed class Lab
+{
+    /// <summary>The one origin the relying party accepts; anything else is a different site.</summary>
+    public const string Origin = "http://localhost:4200";
+
+    public const string RpId = "localhost";
+
+    public Lab()
+    {
+        Fido2 = new Fido2(new Fido2Configuration
+        {
+            ServerDomain = RpId,
+            ServerName = "MedSign Cloud",
+            Origins = new HashSet<string>(StringComparer.Ordinal) { Origin },
+            Timeout = 120_000,
+            ChallengeSize = 32,
+        });
+
+        Challenges = new PasskeyChallengeStore(Build.Options(new PasskeyOptions()), new TestClock());
+        Db = Build.Database();
+        Passkeys = new MedSignPasskeys(Fido2, Challenges, Db);
+    }
+
+    public IFido2 Fido2 { get; }
+
+    public PasskeyChallengeStore Challenges { get; }
+
+    public MedSignDb Db { get; }
+
+    public MedSignPasskeys Passkeys { get; }
+
+    /// <summary>
+    /// An account that already holds this authenticator's passkey -- the state the
+    /// registration ceremony leaves behind, written straight to the database so the
+    /// sign-in tests do not also depend on the registration exercise.
+    /// </summary>
+    public User Enrol(
+        VirtualAuthenticator authenticator,
+        string username = "h.novak",
+        long signCount = 0)
+    {
+        var user = new User
+        {
+            Username = username,
+            Handle = RandomNumberGenerator.GetBytes(32),
+            DisplayName = "Dr. Helena Novak",
+            Role = Roles.Doctor,
+            Credentials =
+            [
+                Build.Credential(authenticator.CredentialId, authenticator.PublicKeyPoint, signCount),
+            ],
+        };
+
+        Db.Users.Add(user);
+        Db.SaveChanges();
+
+        return user;
+    }
 }
 
 /// <summary>
@@ -92,6 +174,8 @@ public static class Build
 /// </summary>
 public static class Exercise
 {
+    private const string Pending = "Not implemented yet -- this is the exercise.";
+
     public static T OrSkip<T>(Func<T> act)
     {
         try
@@ -100,8 +184,44 @@ public static class Exercise
         }
         catch (NotImplementedException)
         {
-            Assert.Skip("Not implemented yet -- this is the exercise.");
+            Assert.Skip(Pending);
             throw; // Unreachable: Assert.Skip does not return.
+        }
+    }
+
+    public static async Task<T> OrSkipAsync<T>(Func<Task<T>> act)
+    {
+        try
+        {
+            return await act();
+        }
+        catch (NotImplementedException)
+        {
+            Assert.Skip(Pending);
+            throw; // Unreachable: Assert.Skip does not return.
+        }
+    }
+
+    /// <summary>
+    /// True when MedSign turned the ceremony down: either by handing back nothing,
+    /// or by letting the library's verification exception through. Both are
+    /// refusals, and which one a method gives depends on how it was written --
+    /// what matters is that a ceremony MedSign cannot vouch for is never accepted.
+    /// </summary>
+    public static async Task<bool> RefusedOrSkipAsync<T>(Func<Task<T?>> act) where T : class
+    {
+        try
+        {
+            return await act() is null;
+        }
+        catch (NotImplementedException)
+        {
+            Assert.Skip(Pending);
+            throw; // Unreachable: Assert.Skip does not return.
+        }
+        catch (Exception)
+        {
+            return true;
         }
     }
 }
