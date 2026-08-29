@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MedSign.Api.Hsm;
 using MedSign.Api.Shared;
+using MedSign.Api.Shared.Auth;
 
 namespace MedSign.Api.Tokens;
 
@@ -61,6 +62,90 @@ public static class TokenVerifier
 
         return null;
     }
+
+    /// <summary>
+    /// The read-back half of <see cref="Diagnose"/>. Diagnose answers "did this
+    /// key sign these bytes"; this answers "and may the bearer act on it" -- the
+    /// same signature check, then the claims that decide whether the session is
+    /// still MedSign's and still alive.
+    ///
+    /// Nothing here touches the database: a token that verifies is trusted for
+    /// what it says, which is the whole point of signing it.
+    /// </summary>
+    public static SessionReview ReviewSession(
+        string token, JwtSigningKey key, JwtOptions jwt, DateTimeOffset now)
+    {
+        if (Diagnose(token, key) is { } problem)
+        {
+            return SessionReview.Refused(problem);
+        }
+
+        // Diagnose has already established three segments and a decodable payload.
+        JsonElement claims;
+        try
+        {
+            claims = JsonDocument.Parse(Base64Url.Decode(token.Split('.')[1])).RootElement;
+        }
+        catch (JsonException)
+        {
+            return SessionReview.Refused("The payload segment is not JSON.");
+        }
+
+        if (Text(claims, "iss") is var issuer && issuer != jwt.Issuer)
+        {
+            return SessionReview.Refused(
+                $"The token says iss={issuer ?? "(missing)"}; this MedSign issues {jwt.Issuer}. "
+                + "A token minted somewhere else is not a session here.");
+        }
+
+        if (Text(claims, "aud") is var audience && audience != jwt.Audience)
+        {
+            return SessionReview.Refused(
+                $"The token says aud={audience ?? "(missing)"}; this MedSign answers to {jwt.Audience}.");
+        }
+
+        if (Seconds(claims, "exp") is not { } expiresAt)
+        {
+            return SessionReview.Refused(
+                "The token has no exp claim, so it would never stop being a session.");
+        }
+
+        if (expiresAt <= now)
+        {
+            return SessionReview.Refused($"This session expired at {expiresAt:u}. Sign in again.");
+        }
+
+        if (!int.TryParse(Text(claims, "sub"), out var userId))
+        {
+            return SessionReview.Refused(
+                $"The token says sub={Text(claims, "sub") ?? "(missing)"}, which is not an account id.");
+        }
+
+        var role = Text(claims, "role");
+        if (!Roles.IsKnown(role))
+        {
+            return SessionReview.Refused(
+                $"The token says role={role ?? "(missing)"}; MedSign knows {Roles.All}.");
+        }
+
+        return SessionReview.Accepted(new SessionPrincipal(
+            userId,
+            Text(claims, "preferred_username") ?? string.Empty,
+            Text(claims, "name") ?? string.Empty,
+            role!));
+    }
+
+    private static string? Text(JsonElement claims, string name) =>
+        claims.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static DateTimeOffset? Seconds(JsonElement claims, string name) =>
+        claims.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.Number
+        && value.TryGetInt64(out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
 
     private static string? DiagnoseHeader(byte[] header, JwtSigningKey key)
     {

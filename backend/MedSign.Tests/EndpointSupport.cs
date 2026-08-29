@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -29,8 +30,16 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
     /// </summary>
     private readonly SqliteConnection _keepAlive;
 
-    public MedSignHost()
+    private readonly int? _sessionLifetimeMinutes;
+
+    /// <param name="sessionLifetimeMinutes">
+    /// How long the tokens this host issues stay good for. A negative lifetime
+    /// hands out a token that was already expired when it was signed, which is
+    /// how the expiry tests get one without a clock the running app shares.
+    /// </param>
+    public MedSignHost(int? sessionLifetimeMinutes = null)
     {
+        _sessionLifetimeMinutes = sessionLifetimeMinutes;
         ConnectionString = $"Data Source=file:{Guid.NewGuid():n}?mode=memory&cache=shared";
 
         _keepAlive = new SqliteConnection(ConnectionString);
@@ -57,6 +66,52 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         builder.UseSetting("Passkey:Origins:0", Origin);
         builder.UseSetting("Passkey:TimeoutMs", "120000");
         builder.UseSetting("Passkey:ChallengeLifetime", "00:05:00");
+
+        if (_sessionLifetimeMinutes is { } minutes)
+        {
+            builder.UseSetting("Jwt:LifetimeMinutes", minutes.ToString(CultureInfo.InvariantCulture));
+        }
+    }
+
+    /// <summary>
+    /// An account with no passkey on it -- everything the session tests need,
+    /// without a ceremony. <see cref="Enrol"/> is for the tests that sign in.
+    /// </summary>
+    public User Account(string username, string role, string fullName)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MedSignDb>();
+
+        var user = new User
+        {
+            Username = username,
+            Handle = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32),
+            DisplayName = fullName,
+            Role = role,
+        };
+
+        db.Users.Add(user);
+        db.SaveChanges();
+
+        return user;
+    }
+
+    /// <summary>
+    /// The session token a finished sign-in would hand this account, minted by
+    /// the application's own issuer with the application's own key. Going
+    /// through the sign-in endpoint instead would make every authorisation test
+    /// depend on the passkey exercise being finished.
+    /// </summary>
+    public string TokenFor(User user)
+    {
+        using var scope = Services.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var key = services.GetRequiredService<IJwtSigningKeyStore>().Current()
+            ?? throw new InvalidOperationException(
+                "The host provisioned no JWT Signing Key, so it cannot issue a session.");
+
+        return services.GetRequiredService<JwtIssuer>().IssueJwt(user, key);
     }
 
     /// <summary>
@@ -117,6 +172,14 @@ public sealed record Answer(HttpStatusCode Status, JsonElement Body, string Raw)
 {
     public bool Ok => Status == HttpStatusCode.OK;
 
+    /// <summary>The media type MedSign labelled the body with, if any.</summary>
+    public string? ContentType { get; init; }
+
+    /// <summary>The elements of a bare JSON array answer, in the order they arrived.</summary>
+    public IReadOnlyList<JsonElement> Items => Body.ValueKind == JsonValueKind.Array
+        ? [.. Body.EnumerateArray()]
+        : [];
+
     /// <summary>The named property, or null when the answer does not carry one.</summary>
     public JsonElement? Field(string name) =>
         Body.ValueKind == JsonValueKind.Object && Body.TryGetProperty(name, out var value)
@@ -149,16 +212,44 @@ public static class Api
     public const string SignInChallenge = "/api/auth/sign-in-challenge";
     public const string SignIn = "/api/auth/sign-in";
 
-    public static async Task<Answer> PostAsync(this HttpClient client, string route, object body)
+    /// <summary>The first endpoint behind a session.</summary>
+    public const string Patients = "/api/patients";
+
+    public static async Task<Answer> PostAsync(this HttpClient client, string route, object body) =>
+        await ReadAsync(await client.PostAsJsonAsync(route, body));
+
+    /// <summary>
+    /// A GET, optionally carrying a session. Not named GetAsync: an extension
+    /// never wins against HttpClient's own method, so the token would be
+    /// silently dropped.
+    ///
+    /// The token goes on unvalidated, because half the point is to send tokens
+    /// that are not well formed.
+    /// </summary>
+    public static async Task<Answer> AskAsync(this HttpClient client, string route, string? token = null)
     {
-        var response = await client.PostAsJsonAsync(route, body);
+        using var request = new HttpRequestMessage(HttpMethod.Get, route);
+
+        if (token is not null)
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
+        }
+
+        return await ReadAsync(await client.SendAsync(request));
+    }
+
+    private static async Task<Answer> ReadAsync(HttpResponseMessage response)
+    {
         var raw = await response.Content.ReadAsStringAsync();
 
         var parsed = raw.Length == 0
             ? default
             : JsonDocument.Parse(raw).RootElement.Clone();
 
-        return new Answer(response.StatusCode, parsed, raw);
+        return new Answer(response.StatusCode, parsed, raw)
+        {
+            ContentType = response.Content.Headers.ContentType?.MediaType,
+        };
     }
 
     public static object Account(string username, string fullName = "Dr. Helena Novak",

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Fido2NetLib;
 using MedSign.Api.Hsm;
 using Net.Pkcs11Interop.Common;
@@ -44,17 +43,6 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
         }
     }
 
-    private static async Task Write(HttpContext context, int status, string title, string detail)
-    {
-        if (context.Response.HasStarted)
-        {
-            return;
-        }
-
-        context.Response.Clear();
-        context.Response.StatusCode = status;
-        context.Response.ContentType = "application/problem+json";
-
-        await context.Response.WriteAsync(JsonSerializer.Serialize(new { status, title, detail }));
-    }
+    private static Task Write(HttpContext context, int status, string title, string detail) =>
+        Problem.WriteAsync(context, status, title, detail);
 }

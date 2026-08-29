@@ -1,6 +1,7 @@
 using MedSign.Api.Hsm;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Shared;
+using MedSign.Api.Shared.Auth;
 using MedSign.Api.Shared.Startup;
 using MedSign.Api.Tokens;
 
@@ -11,6 +12,7 @@ var app = builder.Build();
 
 app.UseMiddleware<ProblemMiddleware>();
 app.UseCors();
+app.UseMiddleware<SessionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -19,6 +21,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapAuthEndpoints();
 app.MapSigningEndpoints();
+app.MapPatientEndpoints();
 app.MapJwksEndpoints();
 
 app.RunStartupTasks();
