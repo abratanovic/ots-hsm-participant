@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
 using MedSign.Api.Auth;
@@ -5,17 +6,41 @@ using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
+// Fido2NetLib.AuthenticatorSelection and the wire record in Auth/Passkey share a
+// name. The alias is here so no exercise has to start by fixing an ambiguity.
+using Fido2AuthenticatorSelection = Fido2NetLib.AuthenticatorSelection;
+
 namespace MedSign.Api.Lab;
 
 public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challenges, MedSignDb db)
 {
     public CredentialCreateOptions BeginRegistration(string username, string fullName)
     {
-        // TODO 1/8: Build CredentialCreateOptions, issue the registration
-        // ceremony under the normalized username, and return the options.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L14-L41
-        throw new NotImplementedException(
-            "Exercise 1/8: start the registration ceremony in MedSignPasskeys.BeginRegistration.");
+        var options = fido2.RequestNewCredential(new RequestNewCredentialParams
+        {
+            User = new Fido2User
+            {
+                Id = RandomNumberGenerator.GetBytes(32),
+                Name = username,
+                DisplayName = fullName.Trim(),
+            },
+
+            PubKeyCredParams = [PubKeyCredParam.ES256],
+
+            AuthenticatorSelection = new Fido2AuthenticatorSelection
+            {
+                ResidentKey = ResidentKeyRequirement.Preferred,
+                UserVerification = UserVerificationRequirement.Preferred,
+            },
+
+            AttestationPreference = AttestationConveyancePreference.None,
+
+            ExcludeCredentials = [],
+        });
+
+        challenges.Issue(username, options);
+
+        return options;
     }
 
     public async Task<RegisteredPasskey> CompleteRegistrationAsync(
