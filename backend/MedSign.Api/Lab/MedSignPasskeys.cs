@@ -16,31 +16,11 @@ public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challeng
 {
     public CredentialCreateOptions BeginRegistration(string username, string fullName)
     {
-        var options = fido2.RequestNewCredential(new RequestNewCredentialParams
-        {
-            User = new Fido2User
-            {
-                Id = RandomNumberGenerator.GetBytes(32),
-                Name = username,
-                DisplayName = fullName.Trim(),
-            },
-
-            PubKeyCredParams = [PubKeyCredParam.ES256],
-
-            AuthenticatorSelection = new Fido2AuthenticatorSelection
-            {
-                ResidentKey = ResidentKeyRequirement.Preferred,
-                UserVerification = UserVerificationRequirement.Preferred,
-            },
-
-            AttestationPreference = AttestationConveyancePreference.None,
-
-            ExcludeCredentials = [],
-        });
-
-        challenges.Issue(username, options);
-
-        return options;
+        // TODO 1/8: Build CredentialCreateOptions, issue the registration
+        // ceremony under the normalized username, and return the options.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L14-L41
+        throw new NotImplementedException(
+            "Exercise 1/8: start the registration ceremony in MedSignPasskeys.BeginRegistration.");
     }
 
     public async Task<RegisteredPasskey> CompleteRegistrationAsync(
