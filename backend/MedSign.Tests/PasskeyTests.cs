@@ -253,13 +253,13 @@ public class ExerciseOneBeginRegistrationTests
 }
 
 /// <summary>
-/// Exercise 1 -- MedSignPasskeys.CompleteRegistrationAsync.
+/// Exercise 3 -- MedSignPasskeys.CompleteRegistrationAsync.
 ///
 /// A real authenticator answers here: VirtualAuthenticator builds the same
 /// attestation object a browser would post back, so Fido2NetLib verifies it for
 /// real and a wrong answer is refused for the right reason.
 /// </summary>
-public class ExerciseOneCompleteRegistrationTests
+public class ExerciseThreeCompleteRegistrationTests
 {
     private const string Username = "h.novak";
     private const string FullName = "Dr. Helena Novak";
@@ -442,9 +442,9 @@ public class ExerciseOneCompleteRegistrationTests
 }
 
 /// <summary>
-/// Exercise 1 -- MedSignPasskeys.BeginSignInAsync.
+/// Exercise 5 -- MedSignPasskeys.BeginSignInAsync.
 /// </summary>
-public class ExerciseOneBeginSignInTests
+public class ExerciseFiveBeginSignInTests
 {
     [Fact]
     public async Task Names_this_relying_party_and_a_fresh_challenge()
@@ -565,12 +565,12 @@ public class ExerciseOneBeginSignInTests
 }
 
 /// <summary>
-/// Exercise 1 -- MedSignPasskeys.CompleteSignInAsync.
+/// Exercise 7 -- MedSignPasskeys.CompleteSignInAsync.
 ///
 /// The account is enrolled straight into the database rather than through the
 /// registration exercise, so a failure here is about this method and nothing else.
 /// </summary>
-public class ExerciseOneCompleteSignInTests
+public class ExerciseSevenCompleteSignInTests
 {
     [Fact]
     public async Task Accepts_the_signature_the_registered_key_produced()
