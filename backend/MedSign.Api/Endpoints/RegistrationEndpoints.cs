@@ -23,15 +23,11 @@ public static class RegistrationEndpoints
                 return invalid;
             }
 
-            var username = Normalise(details.Username);
-            if (await db.Users.AnyAsync(user => user.Username == username))
-            {
-                return Taken(username);
-            }
-
-            var options = passkeys.BeginRegistration(username, details.FullName);
-
-            return Results.Ok(PasskeyWire.ToWire(options));
+            // TODO 2/8: Refuse an existing username, start the registration
+            // ceremony, convert its binary fields for JSON, and return HTTP 200.
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/RegistrationEndpoints.cs#L16-L36
+            throw new NotImplementedException(
+                "Exercise 2/8: implement the registration-challenge endpoint.");
         })
         .WithName("StartPasskeyRegistration");
 
@@ -48,37 +44,12 @@ public static class RegistrationEndpoints
                 return invalid;
             }
 
-            var username = Normalise(request.Username);
-            if (await db.Users.AnyAsync(user => user.Username == username))
-            {
-                return Taken(username);
-            }
-
-            RegisteredPasskey registered;
-            try
-            {
-                registered = await passkeys.CompleteRegistrationAsync(username, request.Credential);
-            }
-            catch (Fido2VerificationException exception)
-                when (exception.Code is Fido2ErrorCode.NonUniqueCredentialId)
-            {
-                return AlreadyRegistered();
-            }
-
-            if (PasskeyDiagnostics.DiagnoseRegistration(registered.Credential) is { } problem)
-            {
-                throw new InvalidOperationException(problem);
-            }
-
-            var user = NewAccount(request, username, registered, clock.GetUtcNow());
-
-            db.Users.Add(user);
-            await db.SaveChangesAsync();
-
-            log.LogInformation("Account opened: {Username} ({Role}), credential {CredentialId}",
-                user.Username, user.Role, Base64Url.Encode(registered.Credential.CredentialId));
-
-            return Results.Ok(sessions.Issue(user));
+            // TODO 4/8: Normalize and de-duplicate the username, complete the
+            // ceremony, map duplicate credential IDs to HTTP 409, validate the
+            // verified key, persist the account and credential, then issue a session.
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/RegistrationEndpoints.cs#L38-L83
+            throw new NotImplementedException(
+                "Exercise 4/8: implement the registration endpoint.");
         })
         .WithName("RegisterAccount");
     }

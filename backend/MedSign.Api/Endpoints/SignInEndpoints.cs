@@ -26,11 +26,12 @@ public static class SignInEndpoints
                 });
             }
 
-            var username = Normalise(request.Username);
-
-            var options = await passkeys.BeginSignInAsync(username);
-
-            return Results.Ok(PasskeyWire.ToWire(options));
+            // TODO 6/8: Start a fresh assertion ceremony, convert its binary
+            // fields for JSON, and return the challenge without leaking whether
+            // this username exists.
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/SignInEndpoints.cs#L15-L35
+            throw new NotImplementedException(
+                "Exercise 6/8: implement the sign-in-challenge endpoint.");
         })
         .WithName("StartPasskeySignIn");
 
@@ -41,31 +42,12 @@ public static class SignInEndpoints
             SessionIssuer sessions,
             ILogger<Program> log) =>
         {
-            var username = Normalise(request.Username ?? string.Empty);
-
-            VerifiedAssertion? verified;
-            try
-            {
-                verified = await passkeys.CompleteSignInAsync(username, request.Assertion);
-            }
-            catch (Fido2VerificationException exception)
-            {
-                return Rejected(log, username, exception.Message);
-            }
-
-            if (verified is null)
-            {
-                return Rejected(log, username,
-                    "no live challenge, unknown account, or unknown credential");
-            }
-
-            verified.Credential.SignCount = verified.SignCount;
-            await db.SaveChangesAsync();
-
-            log.LogInformation("Signed in: {Username} ({Role})",
-                verified.Account.Username, verified.Account.Role);
-
-            return Results.Ok(sessions.Issue(verified.Account));
+            // TODO 8/8: Normalize the username, verify the assertion, return one
+            // generic 401 response for every refusal, persist the new signature
+            // counter, and issue the JWT session only after successful verification.
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/SignInEndpoints.cs#L37-L70
+            throw new NotImplementedException(
+                "Exercise 8/8: implement the sign-in endpoint.");
         })
         .WithName("SignIn");
     }

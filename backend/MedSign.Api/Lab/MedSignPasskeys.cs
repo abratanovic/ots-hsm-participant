@@ -1,42 +1,53 @@
-using System.Security.Cryptography;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
 using MedSign.Api.Auth;
 using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
 using Microsoft.EntityFrameworkCore;
-using Fido2AuthenticatorSelection = Fido2NetLib.AuthenticatorSelection;
 
 namespace MedSign.Api.Lab;
 
 public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challenges, MedSignDb db)
 {
-    // TODO: IMPLEMENT
     public CredentialCreateOptions BeginRegistration(string username, string fullName)
     {
-        throw new NotImplementedException("Excercise 1: Implement the registration ceremony. See the localhost:4300 for instructions.");
+        // TODO 1/8: Build CredentialCreateOptions, issue the registration
+        // ceremony under the normalized username, and return the options.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L14-L41
+        throw new NotImplementedException(
+            "Exercise 1/8: start the registration ceremony in MedSignPasskeys.BeginRegistration.");
     }
 
-    // TODO: IMPLEMENT
     public async Task<RegisteredPasskey> CompleteRegistrationAsync(
         string username,
         PasskeyRegistration credential)
     {
-        throw new NotImplementedException("Excercise 1: Implement the registration ceremony. See the localhost:4300 for instructions.");
+        // TODO 3/8: Consume the original ceremony, verify the browser response,
+        // reject duplicate credential IDs, and return the verified public data.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L43-L69
+        throw new NotImplementedException(
+            "Exercise 3/8: complete the registration ceremony in MedSignPasskeys.CompleteRegistrationAsync.");
     }
 
-    // TODO: IMPLEMENT
     public async Task<AssertionOptions> BeginSignInAsync(string username)
     {
-        throw new NotImplementedException("Excercise 1: Implement the sign-in ceremony. See the localhost:4300 for instructions.");
+        // TODO 5/8: Load the account, offer only its credential IDs, issue a
+        // fresh assertion ceremony, and still answer unknown usernames safely.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L71-L84
+        throw new NotImplementedException(
+            "Exercise 5/8: start the sign-in ceremony in MedSignPasskeys.BeginSignInAsync.");
     }
 
-    // TODO: IMPLEMENT
     public async Task<VerifiedAssertion?> CompleteSignInAsync(
         string username,
         PasskeyAssertion? assertion)
     {
-        throw new NotImplementedException("Excercise 1: Implement the sign-in ceremony. See the localhost:4300 for instructions.");
+        // TODO 7/8: Consume the assertion ceremony, find the stored credential,
+        // verify the signature, counter, RP context and user handle, then return
+        // the account, credential and new signature counter.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L86-L116
+        throw new NotImplementedException(
+            "Exercise 7/8: complete the sign-in ceremony in MedSignPasskeys.CompleteSignInAsync.");
     }
 
     private Task<User?> FindAccountAsync(string username) =>
