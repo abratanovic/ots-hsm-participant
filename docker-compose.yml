@@ -28,13 +28,24 @@ services:
       - artifacts:/artifacts
       - nuget:/root/.nuget/packages
     ports:
-      - "5000:5000"
+      - "5050:5000"
     tty: true
     stdin_open: true
 
   frontend:
     image: abratanov/medsign-frontend:latest
     container_name: medsign-frontend
+    # The published frontend currently has the API origin compiled into its
+    # JavaScript bundle. Port 5000 is occupied by macOS AirPlay Receiver on a
+    # default installation, so rewrite it to the workshop's host port while the
+    # container starts. This can go away once the frontend accepts a runtime
+    # API origin (or proxies /api to the backend).
+    command:
+      - /bin/sh
+      - -c
+      - |
+        sed -i 's#http://localhost:5000#http://localhost:5050#g' /usr/share/nginx/html/*.js
+        exec nginx -g 'daemon off;'
     ports:
       - "4200:80"
     restart: unless-stopped
