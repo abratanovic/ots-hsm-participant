@@ -17,3 +17,9 @@ data/*
 
 # Local port/secret overrides. .env.example is the documented template.
 .env
+
+# Local agent-skill config and working notes. This is a shared workshop repo --
+# specs, issues and agent instructions stay on this machine.
+.scratch/
+docs/
+CLAUDE.md

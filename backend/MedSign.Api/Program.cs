@@ -1,3 +1,4 @@
+using MedSign.Api.Hsm;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Shared;
 using MedSign.Api.Shared.Startup;
@@ -17,6 +18,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapAuthEndpoints();
+app.MapSigningEndpoints();
 app.MapJwksEndpoints();
 
 app.RunStartupTasks();

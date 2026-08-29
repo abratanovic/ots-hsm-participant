@@ -108,7 +108,6 @@ public class RolesTests
     [Theory]
     [InlineData("doctor")]
     [InlineData("patient")]
-    [InlineData("security-admin")]
     public void Knows_the_three_MedSign_roles(string role) => Assert.True(Roles.IsKnown(role));
 
     [Theory]

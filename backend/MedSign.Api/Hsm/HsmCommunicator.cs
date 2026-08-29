@@ -5,19 +5,6 @@ using Net.Pkcs11Interop.HighLevelAPI;
 
 namespace MedSign.Api.Hsm;
 
-/// <summary>
-/// Everything MedSign asks of the HSM, and everything it takes to ask.
-///
-/// The lower half is the part every PKCS#11 integration needs and no tutorial
-/// shows you: loading the module, finding a slot with a token in it, logging in
-/// with a PIN that is not shaped like a PIN, and surviving a session the device
-/// has quietly closed underneath you.
-///
-/// The upper half is the three operations this application actually performs.
-/// They are deliberately few. A key is created, a key is looked up by label, and
-/// a digest is signed -- MedSign never asks for the private key, because refusing
-/// to hand it over is the one thing an HSM exists to do.
-/// </summary>
 public sealed class HsmCommunicator : IDisposable
 {
     private readonly HsmOptions _options;
