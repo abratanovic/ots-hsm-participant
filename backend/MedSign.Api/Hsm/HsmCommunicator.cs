@@ -1,3 +1,4 @@
+using MedSign.Api.Shared;
 using Microsoft.Extensions.Options;
 using Net.Pkcs11Interop.Common;
 using Net.Pkcs11Interop.HighLevelAPI;

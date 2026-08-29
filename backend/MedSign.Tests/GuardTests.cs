@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using MedSign.Api.Auth;
-using MedSign.Api.Hsm;
-using MedSign.Api.Signing;
+using MedSign.Api.Shared;
 
 namespace MedSign.Tests;
 

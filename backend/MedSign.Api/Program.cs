@@ -1,6 +1,7 @@
-using MedSign.Api.Endpoints;
-using MedSign.Api.Hsm;
-using MedSign.Api.Startup;
+using MedSign.Api.Passkeys;
+using MedSign.Api.Shared;
+using MedSign.Api.Shared.Startup;
+using MedSign.Api.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddMedSignServices();

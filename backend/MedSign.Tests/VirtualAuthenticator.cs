@@ -3,8 +3,8 @@ using System.Formats.Cbor;
 using System.Security.Cryptography;
 using System.Text;
 using Fido2NetLib;
-using MedSign.Api.Auth;
-using MedSign.Api.Auth.Passkey;
+using MedSign.Api.Passkeys;
+using MedSign.Api.Shared;
 
 namespace MedSign.Tests;
 
