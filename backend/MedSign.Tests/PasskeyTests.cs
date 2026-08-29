@@ -344,7 +344,7 @@ public class ExerciseOneCompleteRegistrationTests
     public async Task Will_not_take_an_answer_produced_on_another_site()
     {
         var lab = new Lab();
-        using var key = new VirtualAuthenticator { Origin = "http://localhost:4300" };
+        using var key = new VirtualAuthenticator { Origin = Lab.ForeignOrigin };
 
         var ceremony = Exercise.OrSkip(() => lab.Passkeys.BeginRegistration(Username, FullName));
 
@@ -878,7 +878,7 @@ public class ExerciseOneCompleteSignInTests
     public async Task Turns_down_an_answer_produced_on_another_site()
     {
         var lab = new Lab();
-        using var key = new VirtualAuthenticator { Origin = "http://localhost:4300" };
+        using var key = new VirtualAuthenticator { Origin = Lab.ForeignOrigin };
         var account = lab.Enrol(key);
 
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));

@@ -108,6 +108,14 @@ public sealed class Lab
     /// <summary>The one origin the relying party accepts; anything else is a different site.</summary>
     public const string Origin = "http://localhost:4200";
 
+    /// <summary>
+    /// Somewhere MedSign is not. Deliberately not a localhost port: every port in
+    /// the workshop stack is one configuration change away from being an origin
+    /// this relying party accepts, and a test that says "refuse this" must not be
+    /// one edit of appsettings.json away from meaning the opposite.
+    /// </summary>
+    public const string ForeignOrigin = "https://medsign-clone.example";
+
     public const string RpId = "localhost";
 
     /// <summary>How long a held ceremony stays spendable; the tests move <see cref="Clock"/> past it.</summary>
