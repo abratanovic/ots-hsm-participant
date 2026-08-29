@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using MedSign.Api.Hsm;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Shared;
 using MedSign.Api.Tokens;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MedSign.Tests;
 
@@ -48,6 +50,13 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
 
     public string ConnectionString { get; }
 
+    /// <summary>
+    /// Configuration this host starts with, for the settings only one test
+    /// cares about. Write to it before touching anything that boots the host --
+    /// the first request, or the first call that reaches the database.
+    /// </summary>
+    public Dictionary<string, string?> Settings { get; } = [];
+
     /// <summary>The one origin this relying party accepts, as the tests configure it.</summary>
     public const string Origin = Lab.Origin;
 
@@ -71,7 +80,27 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         {
             builder.UseSetting("Jwt:LifetimeMinutes", minutes.ToString(CultureInfo.InvariantCulture));
         }
+
+        foreach (var (key, value) in Settings)
+        {
+            builder.UseSetting(key, value);
+        }
+
+        // There is no YubiHSM in a test run and no simulator to stand in for
+        // one, so the device is swapped out here, at the composition root,
+        // rather than anywhere a test can reach into.
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IDocumentSigner>();
+            services.AddSingleton<IDocumentSigner>(Hsm);
+        });
     }
+
+    /// <summary>
+    /// The device this host is running against. Tests touch it only to unplug
+    /// it -- everything else goes over HTTP.
+    /// </summary>
+    public FakeDocumentSigner Hsm { get; } = new();
 
     /// <summary>
     /// An account with no passkey on it -- everything the session tests need,
@@ -159,6 +188,7 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
             return;
         }
 
+        Hsm.Dispose();
         _keepAlive.Dispose();
         SqliteConnection.ClearAllPools();
     }
@@ -215,8 +245,23 @@ public static class Api
     /// <summary>The first endpoint behind a session.</summary>
     public const string Patients = "/api/patients";
 
-    public static async Task<Answer> PostAsync(this HttpClient client, string route, object body) =>
-        await ReadAsync(await client.PostAsJsonAsync(route, body));
+    public const string SigningStatus = "/api/signing/status";
+    public const string SigningEnable = "/api/signing/enable";
+
+    public static async Task<Answer> PostAsync(
+        this HttpClient client, string route, object? body = null, string? token = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, route);
+
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        Present(request, token);
+
+        return await ReadAsync(await client.SendAsync(request));
+    }
 
     /// <summary>
     /// A GET, optionally carrying a session. Not named GetAsync: an extension
@@ -230,12 +275,17 @@ public static class Api
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, route);
 
+        Present(request, token);
+
+        return await ReadAsync(await client.SendAsync(request));
+    }
+
+    private static void Present(HttpRequestMessage request, string? token)
+    {
         if (token is not null)
         {
             request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
         }
-
-        return await ReadAsync(await client.SendAsync(request));
     }
 
     private static async Task<Answer> ReadAsync(HttpResponseMessage response)

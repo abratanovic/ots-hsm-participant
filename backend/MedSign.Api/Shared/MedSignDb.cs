@@ -1,3 +1,4 @@
+using MedSign.Api.Hsm;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Tokens;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,9 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
     public DbSet<PasskeyCredential> PasskeyCredentials => Set<PasskeyCredential>();
     public DbSet<JwtSigningKey> JwtSigningKeys => Set<JwtSigningKey>();
 
+    /// <summary>Per-doctor document signing keys. Not <see cref="JwtSigningKeys"/>.</summary>
+    public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(user =>
@@ -20,6 +24,24 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
             user.Property(u => u.Handle).IsRequired();
             user.Property(u => u.DisplayName).IsRequired();
             user.Property(u => u.Role).IsRequired();
+
+            // Restricted, not cascade: deleting a key out from under a doctor
+            // would leave their signed reports pointing at nothing.
+            user.HasOne(u => u.SigningKey)
+                .WithMany()
+                .HasForeignKey(u => u.SigningKeyId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<SigningKey>(key =>
+        {
+            key.HasKey(k => k.Id);
+
+            // The device tells keys apart by label alone, so MedSign must too.
+            key.HasIndex(k => k.KeyLabel).IsUnique();
+
+            key.Property(k => k.KeyLabel).IsRequired();
+            key.Property(k => k.PublicKeyPoint).IsRequired();
         });
 
         model.Entity<PasskeyCredential>(credential =>

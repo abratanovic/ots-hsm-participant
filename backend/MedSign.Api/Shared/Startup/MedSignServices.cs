@@ -67,6 +67,11 @@ public static class MedSignServices
     {
         services.AddSingleton<HsmCommunicator>();
 
+        // The seam the tests substitute: a YubiHSM has no simulator, so without
+        // it nothing that signs a document could be tested at all.
+        services.AddSingleton<IDocumentSigner, HsmDocumentSigner>();
+        services.AddScoped<DoctorSigningKeys>();
+
         services.AddSingleton<SigningKeyStatus>();
 
         // Exercise 2 swaps this one line for HsmJwtSigningProvider.
