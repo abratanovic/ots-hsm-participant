@@ -108,7 +108,18 @@ public sealed class Lab
     /// <summary>The one origin the relying party accepts; anything else is a different site.</summary>
     public const string Origin = "http://localhost:4200";
 
+    /// <summary>
+    /// Somewhere MedSign is not. Deliberately not a localhost port: every port in
+    /// the workshop stack is one configuration change away from being an origin
+    /// this relying party accepts, and a test that says "refuse this" must not be
+    /// one edit of appsettings.json away from meaning the opposite.
+    /// </summary>
+    public const string ForeignOrigin = "https://medsign-clone.example";
+
     public const string RpId = "localhost";
+
+    /// <summary>How long a held ceremony stays spendable; the tests move <see cref="Clock"/> past it.</summary>
+    public static readonly TimeSpan ChallengeLifetime = TimeSpan.FromMinutes(5);
 
     public Lab()
     {
@@ -121,12 +132,18 @@ public sealed class Lab
             ChallengeSize = 32,
         });
 
-        Challenges = new PasskeyChallengeStore(Build.Options(new PasskeyOptions()), new TestClock());
+        Clock = new TestClock();
+        Challenges = new PasskeyChallengeStore(
+            Build.Options(new PasskeyOptions { ChallengeLifetime = ChallengeLifetime }),
+            Clock);
         Db = Build.Database();
         Passkeys = new MedSignPasskeys(Fido2, Challenges, Db);
     }
 
     public IFido2 Fido2 { get; }
+
+    /// <summary>The clock the challenge store reads, so a test can let a held ceremony go stale.</summary>
+    public TestClock Clock { get; }
 
     public PasskeyChallengeStore Challenges { get; }
 
@@ -207,6 +224,11 @@ public static class Exercise
     /// or by letting the library's verification exception through. Both are
     /// refusals, and which one a method gives depends on how it was written --
     /// what matters is that a ceremony MedSign cannot vouch for is never accepted.
+    ///
+    /// Crashing is not a refusal. A NullReferenceException (and friends) means the
+    /// method walked off the end of its own happy path, which reaches the endpoint
+    /// as a 500 rather than a rejected sign-in, so those are reported as failures
+    /// with the exception that caused them.
     /// </summary>
     public static async Task<bool> RefusedOrSkipAsync<T>(Func<Task<T?>> act) where T : class
     {
@@ -219,9 +241,27 @@ public static class Exercise
             Assert.Skip(Pending);
             throw; // Unreachable: Assert.Skip does not return.
         }
+        catch (Exception exception) when (IsCrash(exception))
+        {
+            Assert.Fail(
+                $"MedSign crashed instead of refusing: {exception.GetType().Name}: {exception.Message}\n"
+                + "Turning a ceremony down is a decision this method makes -- hand back null, or let "
+                + "Fido2NetLib's verification exception through. Reaching this line means something was "
+                + "read before it was checked.\n"
+                + exception.StackTrace);
+            return false; // Unreachable: Assert.Fail does not return.
+        }
         catch (Exception)
         {
             return true;
         }
     }
+
+    /// <summary>A bug dressed as a rejection: nothing here is a decision the method made.</summary>
+    private static bool IsCrash(Exception exception) => exception
+        is NullReferenceException
+        or IndexOutOfRangeException
+        or KeyNotFoundException
+        or ObjectDisposedException
+        or StackOverflowException;
 }
