@@ -70,10 +70,17 @@ public sealed class VirtualAuthenticator : IDisposable
     }
 
     /// <summary>The answer to a registration ceremony: a new key, attested with "none".</summary>
-    public PasskeyRegistration Register(CredentialCreateOptions ceremony)
+    public PasskeyRegistration Register(CredentialCreateOptions ceremony) =>
+        Register(ceremony.Challenge, ceremony.Rp.Id);
+
+    /// <summary>
+    /// The same answer, built from a ceremony that arrived as JSON rather than as
+    /// library objects -- which is what the endpoint tests have to work from.
+    /// </summary>
+    public PasskeyRegistration Register(byte[] challenge, string rpId)
     {
-        var clientData = ClientData("webauthn.create", ceremony.Challenge);
-        var authenticatorData = AuthenticatorData(RpIdOverride ?? ceremony.Rp.Id, attested: true);
+        var clientData = ClientData("webauthn.create", challenge);
+        var authenticatorData = AuthenticatorData(RpIdOverride ?? rpId, attested: true);
 
         return new PasskeyRegistration(
             Id: Base64Url.Encode(CredentialId),
@@ -90,12 +97,16 @@ public sealed class VirtualAuthenticator : IDisposable
     /// authenticator believes this key belongs to -- pass someone else's to see a
     /// relying party that does not check it hand over the wrong account.
     /// </summary>
-    public PasskeyAssertion SignIn(AssertionOptions ceremony, byte[]? userHandle)
+    public PasskeyAssertion SignIn(AssertionOptions ceremony, byte[]? userHandle) =>
+        SignIn(ceremony.Challenge, ceremony.RpId ?? Lab.RpId, userHandle);
+
+    /// <summary>The same answer, built from a ceremony that arrived as JSON.</summary>
+    public PasskeyAssertion SignIn(byte[] challenge, string rpId, byte[]? userHandle)
     {
         SignCount++;
 
-        var clientData = ClientData("webauthn.get", ceremony.Challenge);
-        var authenticatorData = AuthenticatorData(RpIdOverride ?? ceremony.RpId ?? Lab.RpId, attested: false);
+        var clientData = ClientData("webauthn.get", challenge);
+        var authenticatorData = AuthenticatorData(RpIdOverride ?? rpId, attested: false);
 
         var signature = _key.SignData(
             [.. authenticatorData, .. SHA256.HashData(clientData)],

@@ -20,6 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Program is internal (top-level statements), and WebApplicationFactory
+         needs to see it to boot the app in-process for the endpoint tests. -->
+    <InternalsVisibleTo Include="MedSign.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- ASP.NET Core's implicit usings pull in Microsoft.AspNetCore.Http.ISession,
          which collides with the PKCS#11 one. Pin the name project-wide so no Lab
          file has to carry a disambiguating using. -->
