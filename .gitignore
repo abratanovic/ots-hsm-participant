@@ -17,3 +17,6 @@ status/*
 # The database, created on first run.
 data/*
 !data/.gitkeep
+
+# Local port/secret overrides. .env.example is the documented template.
+.env
