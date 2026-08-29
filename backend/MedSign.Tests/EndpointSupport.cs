@@ -272,6 +272,12 @@ public static class Api
 
     public const string Reports = "/api/reports";
 
+    /// <summary>One report, by the public id the API answered with.</summary>
+    public static string Report(string id) => $"{Reports}/{id}";
+
+    /// <summary>That report's PDF.</summary>
+    public static string Document(string id) => $"{Reports}/{id}/document";
+
     public static async Task<Answer> PostAsync(
         this HttpClient client, string route, object? body = null, string? token = null)
     {
@@ -302,6 +308,21 @@ public static class Api
         Present(request, token);
 
         return await ReadAsync(await client.SendAsync(request));
+    }
+
+    /// <summary>
+    /// A GET whose answer is not JSON. <see cref="AskAsync"/> parses the body,
+    /// which a PDF is not, so a download is fetched as the response itself and
+    /// the test reads the bytes and the headers off it.
+    /// </summary>
+    public static Task<HttpResponseMessage> FetchAsync(
+        this HttpClient client, string route, string? token = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, route);
+
+        Present(request, token);
+
+        return client.SendAsync(request);
     }
 
     private static void Present(HttpRequestMessage request, string? token)

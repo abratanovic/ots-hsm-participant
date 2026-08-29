@@ -17,6 +17,37 @@ public static class ReportEndpoints
             Results.Ok(ReportView.Of(reports.Issue(context.Session().UserId, request))))
             .RequireRole(Roles.Doctor)
             .WithName("IssueReport");
+
+        // One route, two meanings, and the session picks which: reports this
+        // doctor issued, or reports issued to this patient. Not a query
+        // parameter -- a client that can name whose reports it wants is a
+        // client that can name somebody else's.
+        group.MapGet("", async (HttpContext context, ReportAccess reports,
+                CancellationToken cancellationToken) =>
+            Results.Ok((await reports.ListAsync(context.Session(), cancellationToken))
+                .Select(ReportSummaryView.Of)
+                .ToList()))
+            .RequireRole(Roles.Doctor, Roles.Patient)
+            .WithName("ListReports");
+
+        group.MapGet("/{id:guid}", async (HttpContext context, Guid id, ReportAccess reports,
+                CancellationToken cancellationToken) =>
+            Results.Ok(ReportView.Of(await reports.FindAsync(context.Session(), id, cancellationToken))))
+            .RequireRole(Roles.Doctor, Roles.Patient)
+            .WithName("GetReport");
+
+        // The file itself, behind the same session and the same party check as
+        // everything else. A report URL that is guessable would otherwise be a
+        // way to read somebody's records without an account at all.
+        group.MapGet("/{id:guid}/document", async (HttpContext context, Guid id,
+                ReportAccess reports, CancellationToken cancellationToken) =>
+        {
+            var document = await reports.DownloadAsync(context.Session(), id, cancellationToken);
+
+            return Results.File(document.Content, ReportFile.ContentType, document.Name);
+        })
+            .RequireRole(Roles.Doctor, Roles.Patient)
+            .WithName("DownloadReportDocument");
     }
 }
 
@@ -49,6 +80,75 @@ public sealed record ReportView(
         report.Body,
         DocumentView.Of(report),
         SignatureView.Of(report));
+}
+
+/// <summary>
+/// A report in a list: <see cref="ReportView"/> with the body replaced by an
+/// excerpt of it.
+///
+/// The same shape otherwise, down to the nesting, so the frontend renders a
+/// list entry and an opened report with the same understanding of what a report
+/// is. Both parties are named on every entry rather than just the counterparty,
+/// because the counterparty depends on who is looking and a payload that
+/// changes its meaning by caller is a payload nothing can be written against.
+/// </summary>
+public sealed record ReportSummaryView(
+    Guid Id,
+    PartyView Patient,
+    PartyView Doctor,
+    string Type,
+    DateTimeOffset IssuedAt,
+    string Excerpt,
+    DocumentView Document,
+    SignatureView Signature)
+{
+    public static ReportSummaryView Of(MedicalReport report) => new(
+        report.PublicId,
+        PartyView.Of(report.Patient),
+        PartyView.Of(report.Doctor),
+        report.Type,
+        report.IssuedAt,
+        ReportExcerpt.Of(report.Body),
+        DocumentView.Of(report),
+        SignatureView.Of(report));
+}
+
+/// <summary>
+/// The first line or so of a report's findings.
+///
+/// A list of a hundred reports should not be a hundred whole documents on the
+/// wire, and a list entry is a thing to recognise rather than a thing to read:
+/// the full body is one request away, at the report's own URL.
+/// </summary>
+public static class ReportExcerpt
+{
+    /// <summary>
+    /// About a line and a half of prose -- long enough to tell two reports
+    /// apart, short enough that a list stays a list.
+    /// </summary>
+    public const int MaxLength = 160;
+
+    /// <summary>The character that says the rest of it is elsewhere.</summary>
+    public const string Ellipsis = "…";
+
+    public static string Of(string body)
+    {
+        // Collapsed to one line first: a body is plain text with paragraphs in
+        // it, and a list entry has one line to give.
+        var flattened = string.Join(' ', body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        if (flattened.Length <= MaxLength)
+        {
+            return flattened;
+        }
+
+        var cut = flattened[..MaxLength];
+        var lastSpace = cut.LastIndexOf(' ');
+
+        // Cut at a word rather than mid-syllable, unless the body is one long
+        // unbroken run and there is no word to cut at.
+        return (lastSpace > 0 ? cut[..lastSpace] : cut).TrimEnd() + Ellipsis;
+    }
 }
 
 /// <summary>

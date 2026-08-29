@@ -35,6 +35,16 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
             await Write(context, StatusCodes.Status502BadGateway, "The HSM refused the operation",
                 $"{ex.Method} returned {ex.RV}.");
         }
+        catch (NotFoundException ex)
+        {
+            log.LogInformation("Nothing to show: {Message}", ex.Message);
+            await Write(context, StatusCodes.Status404NotFound, ex.Title, ex.Message);
+        }
+        catch (GoneException ex)
+        {
+            log.LogWarning("Gone: {Message}", ex.Message);
+            await Write(context, StatusCodes.Status410Gone, ex.Title, ex.Message);
+        }
         catch (BadRequestException ex)
         {
             log.LogInformation("Refused: {Message}", ex.Message);

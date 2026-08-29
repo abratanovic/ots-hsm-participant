@@ -52,6 +52,22 @@ public sealed class ReportStorage(IOptions<ReportStorageOptions> options)
     }
 
     /// <summary>
+    /// The stored bytes of a report's document, or null when the file is gone.
+    ///
+    /// Null rather than an exception because a missing file is a real state
+    /// with a real answer: the row survives its document, and what a caller is
+    /// owed then is "this cannot be produced", not a stack trace. It is also
+    /// the only honest answer -- the bytes that were signed cannot be made
+    /// again, so nothing here may fall back to rendering a replacement.
+    /// </summary>
+    public byte[]? TryRead(Guid publicId)
+    {
+        var path = PathFor(publicId);
+
+        return File.Exists(path) ? File.ReadAllBytes(path) : null;
+    }
+
+    /// <summary>
     /// Removes a document written for a report that then failed to be issued.
     ///
     /// Best effort on purpose: this runs while an exception is on its way up,

@@ -91,6 +91,7 @@ public static class MedSignServices
 
         services.AddSingleton<ReportStorage>();
         services.AddScoped<ReportIssuing>();
+        services.AddScoped<ReportAccess>();
     }
 
     private static void AddLoopbackCors(this IServiceCollection services) =>
