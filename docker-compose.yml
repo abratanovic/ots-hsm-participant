@@ -13,6 +13,11 @@ services:
       # ---- Storage -------------------------------------------------------
       ConnectionStrings__MedSign: Data Source=/app/data/medsign.db
 
+      # Report PDFs, beside the database in the same bind mount. It is the only
+      # path that survives the watcher restarting the app, and the signature
+      # over a file that is gone cannot be checked again.
+      Storage__Root: /app/data
+
       MEDSIGN_ARTIFACTS: /artifacts
       MEDSIGN_STATUS_DIR: /status
 

@@ -6,6 +6,7 @@ using MedSign.Api.Shared;
 using MedSign.Api.Tokens;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using QuestPDF.Infrastructure;
 
 namespace MedSign.Api.Shared.Startup;
 
@@ -26,6 +27,7 @@ public static class MedSignServices
         services.Configure<HsmOptions>(builder.Configuration.GetSection("Hsm"));
         services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
         services.Configure<PasskeyOptions>(builder.Configuration.GetSection("Passkey"));
+        services.Configure<ReportStorageOptions>(builder.Configuration.GetSection("Storage"));
 
         services.AddDbContext<MedSignDb>(options => options.UseSqlite(
             builder.Configuration.GetConnectionString("MedSign") ?? "Data Source=medsign.db"));
@@ -37,6 +39,7 @@ public static class MedSignServices
 
         services.AddPasskeys();
         services.AddSigning();
+        services.AddReports();
         services.AddLoopbackCors();
     }
 
@@ -76,6 +79,18 @@ public static class MedSignServices
 
         // Exercise 2 swaps this one line for HsmJwtSigningProvider.
         services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
+    }
+
+    private static void AddReports(this IServiceCollection services)
+    {
+        // QuestPDF refuses to render until it has been told which licence it is
+        // being used under, and it throws when it finds out at the first
+        // render rather than here. MedSign is open source and nowhere near the
+        // revenue threshold, so the Community terms apply.
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        services.AddSingleton<ReportStorage>();
+        services.AddScoped<ReportIssuing>();
     }
 
     private static void AddLoopbackCors(this IServiceCollection services) =>

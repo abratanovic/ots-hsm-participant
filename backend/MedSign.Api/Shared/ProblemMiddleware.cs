@@ -35,6 +35,11 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
             await Write(context, StatusCodes.Status502BadGateway, "The HSM refused the operation",
                 $"{ex.Method} returned {ex.RV}.");
         }
+        catch (BadRequestException ex)
+        {
+            log.LogInformation("Refused: {Message}", ex.Message);
+            await Write(context, StatusCodes.Status400BadRequest, ex.Title, ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             log.LogWarning(ex, "Rejected: {Message}", ex.Message);

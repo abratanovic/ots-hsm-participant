@@ -46,9 +46,25 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
 
         _keepAlive = new SqliteConnection(ConnectionString);
         _keepAlive.Open();
+
+        StorageRoot = Path.Combine(Path.GetTempPath(), $"medsign-{Guid.NewGuid():n}");
     }
 
     public string ConnectionString { get; }
+
+    /// <summary>
+    /// Where this host's report PDFs land: a directory of its own, removed when
+    /// it is disposed. Redirecting the storage root is all it takes, which is
+    /// the whole reason the root is configuration rather than a constant.
+    /// </summary>
+    public string StorageRoot { get; }
+
+    /// <summary>
+    /// Where the PDF for a report with this id has to be, spelled out here
+    /// rather than asked of the application: the path is part of the contract.
+    /// </summary>
+    public string DocumentPath(string reportId) =>
+        Path.Combine(StorageRoot, "reports", $"{reportId}.pdf");
 
     /// <summary>
     /// Configuration this host starts with, for the settings only one test
@@ -70,6 +86,7 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         builder.UseSetting(EnvJwtSigningProvider.KeyVariable, Build.SigningKey);
 
         builder.UseSetting("ConnectionStrings:MedSign", ConnectionString);
+        builder.UseSetting("Storage:Root", StorageRoot);
         builder.UseSetting("Passkey:RpId", RpId);
         builder.UseSetting("Passkey:RpName", "MedSign Cloud");
         builder.UseSetting("Passkey:Origins:0", Origin);
@@ -191,6 +208,11 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         Hsm.Dispose();
         _keepAlive.Dispose();
         SqliteConnection.ClearAllPools();
+
+        if (Directory.Exists(StorageRoot))
+        {
+            Directory.Delete(StorageRoot, recursive: true);
+        }
     }
 }
 
@@ -247,6 +269,8 @@ public static class Api
 
     public const string SigningStatus = "/api/signing/status";
     public const string SigningEnable = "/api/signing/enable";
+
+    public const string Reports = "/api/reports";
 
     public static async Task<Answer> PostAsync(
         this HttpClient client, string route, object? body = null, string? token = null)

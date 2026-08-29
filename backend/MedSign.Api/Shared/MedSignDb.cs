@@ -14,6 +14,8 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
     /// <summary>Per-doctor document signing keys. Not <see cref="JwtSigningKeys"/>.</summary>
     public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
 
+    public DbSet<MedicalReport> MedicalReports => Set<MedicalReport>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(user =>
@@ -42,6 +44,43 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
 
             key.Property(k => k.KeyLabel).IsRequired();
             key.Property(k => k.PublicKeyPoint).IsRequired();
+        });
+
+        model.Entity<MedicalReport>(report =>
+        {
+            report.HasKey(r => r.Id);
+
+            // The public id is the API's id and the PDF's filename stem, so it
+            // has to identify exactly one report in both places.
+            report.HasIndex(r => r.PublicId).IsUnique();
+
+            report.Property(r => r.PublicId).IsRequired();
+            report.Property(r => r.Type).IsRequired();
+            report.Property(r => r.Body).IsRequired();
+            report.Property(r => r.FileName).IsRequired();
+            report.Property(r => r.Sha256).IsRequired();
+
+            // Not nullable, and that is the design: a report with no signature
+            // is a state MedSign does not have.
+            report.Property(r => r.Signature).IsRequired();
+
+            // Restricted throughout. A report is a record of something that
+            // happened; deleting an account or a key out from under one would
+            // leave a signed document nothing can explain.
+            report.HasOne(r => r.Doctor)
+                .WithMany()
+                .HasForeignKey(r => r.DoctorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            report.HasOne(r => r.Patient)
+                .WithMany()
+                .HasForeignKey(r => r.PatientUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            report.HasOne(r => r.SigningKey)
+                .WithMany()
+                .HasForeignKey(r => r.SigningKeyId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         model.Entity<PasskeyCredential>(credential =>

@@ -15,6 +15,10 @@ public static class StartupTasks
         var db = services.GetRequiredService<MedSignDb>();
         db.Database.EnsureCreated();
 
+        // Before the first report rather than during it: a storage root that
+        // does not exist should be a startup problem, not a signing one.
+        services.GetRequiredService<ReportStorage>().EnsureDirectory();
+
         ProvisionSigningKey(services);
         StartupBanner.Print(app, services, db);
     }

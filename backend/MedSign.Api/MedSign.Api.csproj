@@ -17,6 +17,12 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Pkcs11Interop" Version="5.3.0" />
+    <!-- The report PDFs. Chosen for a fluent layout API over positioning boxes
+         by coordinate, and for a licence that is not viral, which stopped
+         mattering the moment embedded PAdES signatures went out of scope. Its
+         licence flag is set in MedSignServices; without that it throws at the
+         first render rather than at startup. -->
+    <PackageReference Include="QuestPDF" Version="2026.8.0" />
   </ItemGroup>
 
   <ItemGroup>

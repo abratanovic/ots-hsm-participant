@@ -22,6 +22,7 @@ if (app.Environment.IsDevelopment())
 app.MapAuthEndpoints();
 app.MapSigningEndpoints();
 app.MapPatientEndpoints();
+app.MapReportEndpoints();
 app.MapJwksEndpoints();
 
 app.RunStartupTasks();
