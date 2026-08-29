@@ -34,25 +34,6 @@ else
     exec 2>&1
 fi
 
-# Trigger removal: the app writes its JWT signing key into the watched tree on
-# first run, which is a brand new directory entry appearing under the watcher's
-# feet. Creating it here, before the watcher starts looking, takes that away.
-# The app truncates and rewrites this file rather than replacing it, so it never
-# creates a second entry later.
-[ -e MedSign.Api/.env ] || : > MedSign.Api/.env
-
-# The signing key is part of the stack's configuration, so docker-compose.yml is
-# allowed to pin one. The app only ever looks in .env, so a key handed to the
-# container as MEDSIGN_JWT_SIGNING_KEY is written there before the app starts.
-# Empty (the default) leaves the file alone and the app generates its own.
-if [ -n "${MEDSIGN_JWT_SIGNING_KEY:-}" ]; then
-    kept=$(grep -v '^MEDSIGN_JWT_SIGNING_KEY=' MedSign.Api/.env)
-    # Truncate and rewrite in place. Writing a temp file and moving it over
-    # would create new directory entries under the watcher's feet, which is
-    # the thing this script exists to avoid.
-    { echo "$kept"; echo "MEDSIGN_JWT_SIGNING_KEY=$MEDSIGN_JWT_SIGNING_KEY"; } > MedSign.Api/.env
-fi
-
 # Restore once, up front. The test gate builds MedSign.Tests through an MSBuild
 # task, which does not restore, and dotnet watch only knows about MedSign.Api
 # and the projects it references.
@@ -60,9 +41,9 @@ dotnet restore MedSign.slnx || exit 1
 
 # Then build once, before anything is watching.
 #
-# This is the second half of the trigger removal. A build writes a handful of
-# generated files (AssemblyInfo.cs, GlobalUsings.g.cs and friends) into an
-# artifacts folder beside the projects, and no amount of ArtifactsPath
+# This is the trigger removal. A build writes a handful of generated files
+# (AssemblyInfo.cs, GlobalUsings.g.cs and friends) into an artifacts folder
+# beside the projects, and no amount of ArtifactsPath
 # redirection reaches the evaluation that puts them there. They are only ever
 # *created* once and rewritten thereafter, so doing it now, with no watcher
 # running, means the watcher only ever sees a tree that has stopped growing.

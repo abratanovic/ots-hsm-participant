@@ -1,5 +1,6 @@
 using MedSign.Api.Data;
 using MedSign.Api.Hsm;
+using MedSign.Api.Signing;
 
 namespace MedSign.Api.Auth;
 
@@ -7,7 +8,7 @@ public sealed class SessionIssuer(
     IJwtSigningKeyStore keys,
     JwtIssuer issuer,
     Claims claims,
-    ISigningProvider provider,
+    IJwtSigningProvider provider,
     SigningKeyStatus signingKey)
 {
     public object Issue(User user)

@@ -35,7 +35,12 @@ services:
       Jwt__Audience: medsign-cloud
       Jwt__LifetimeMinutes: "60"
 
-      MEDSIGN_JWT_SIGNING_KEY: ${MEDSIGN_JWT_SIGNING_KEY:-}
+      # The JWT signing key: an EC P-256 private key, PKCS#8, base64. Exercise 1 is
+      # about the fact that you can read it right here, in a file that is committed
+      # to this repository -- and that anyone who can is a doctor on every instance
+      # of MedSign in the room. Exercise 2 is about fixing that. Override it in .env
+      # if you want your own.
+      MEDSIGN_JWT_SIGNING_KEY: "${MEDSIGN_JWT_SIGNING_KEY:-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgkjvRAiTO7MWILv7SF9Tbwy3/NZdE0s5bNS7dWglwKb6hRANCAATWnZ/NfLtprWztwxk/LPx6uPgXURM2HEDCEJUd8jY2/GXx1/gpQ5VQybPJVnbKa9BGLcOE9XP7k5HhpS6cgaGR}"
 
       # ---- dotnet watch --------------------------------------------------
       DOTNET_USE_POLLING_FILE_WATCHER: "1"

@@ -4,6 +4,7 @@ using System.Text.Json;
 using MedSign.Api.Auth;
 using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
+using MedSign.Api.Signing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -23,8 +24,6 @@ namespace MedSign.Tests;
 /// </summary>
 public sealed class MedSignHost : WebApplicationFactory<Program>
 {
-    private readonly TempContentRoot _root = new();
-
     /// <summary>
     /// Held open for the lifetime of the host: an in-memory SQLite database exists
     /// only while something is connected to it.
@@ -48,9 +47,10 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // EnvFileSigningProvider writes the JWT signing key into the content root.
-        // A disposable directory keeps that out of the repository.
-        builder.UseContentRoot(_root.ContentRootPath);
+        // The signing key reaches the running app as an environment variable. Handing
+        // it to the host as a setting keeps it out of this test process's environment,
+        // which every other test would share.
+        builder.UseSetting(EnvJwtSigningProvider.KeyVariable, Build.SigningKey);
 
         builder.UseSetting("ConnectionStrings:MedSign", ConnectionString);
         builder.UseSetting("Passkey:RpId", RpId);
@@ -107,7 +107,6 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
 
         _keepAlive.Dispose();
         SqliteConnection.ClearAllPools();
-        _root.Dispose();
     }
 }
 

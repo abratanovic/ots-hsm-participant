@@ -1,6 +1,3 @@
-# Written by the backend on first run. Holds the JWT signing key in clear text.
-backend/MedSign.Api/.env
-
 # Build output. Produced inside the container, by Linux, for Linux -- your host
 # has no .NET and never needs to look in here.
 backend/**/bin/

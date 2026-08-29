@@ -67,11 +67,12 @@ public static class MedSignServices
 
     private static void AddSigning(this IServiceCollection services)
     {
-        services.AddSingleton<HsmSessionHost>();
+        services.AddSingleton<HsmCommunicator>();
 
         services.AddSingleton<SigningKeyStatus>();
 
-        services.AddSingleton<ISigningProvider, EnvFileSigningProvider>();
+        // Exercise 2 swaps this one line for HsmJwtSigningProvider.
+        services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
     }
 
     private static void AddLoopbackCors(this IServiceCollection services) =>

@@ -4,9 +4,9 @@ using MedSign.Api.Auth;
 using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
 using MedSign.Api.Lab;
+using MedSign.Api.Signing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace MedSign.Tests;
@@ -25,41 +25,37 @@ public sealed class TestClock(DateTimeOffset now) : TimeProvider
     public void Advance(TimeSpan by) => _now += by;
 }
 
-/// <summary>
-/// A throwaway directory that deletes itself. EnvFileSigningProvider writes a real
-/// .env, so the tests give it a real -- but disposable -- content root.
-/// </summary>
-public sealed class TempContentRoot : IHostEnvironment, IDisposable
-{
-    public TempContentRoot()
-    {
-        ContentRootPath = Path.Combine(Path.GetTempPath(), "medsign-tests", Guid.NewGuid().ToString("n"));
-        Directory.CreateDirectory(ContentRootPath);
-    }
-
-    public string EnvironmentName { get; set; } = Environments.Development;
-    public string ApplicationName { get; set; } = "MedSign.Tests";
-    public string ContentRootPath { get; set; }
-    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
-
-    public string EnvPath => Path.Combine(ContentRootPath, ".env");
-
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(ContentRootPath, recursive: true);
-        }
-        catch (IOException)
-        {
-            // A leftover temp directory is not worth failing a test over.
-        }
-    }
-}
-
 public static class Build
 {
     public static IOptions<T> Options<T>(T value) where T : class => Microsoft.Extensions.Options.Options.Create(value);
+
+    /// <summary>
+    /// A P-256 private key, PKCS#8, base64 -- the shape MEDSIGN_JWT_SIGNING_KEY holds.
+    /// Fixed rather than generated so a failing signature test fails the same way twice.
+    /// This one is the tests' own; the stack signs with the key docker-compose.yml pins.
+    /// </summary>
+    public const string SigningKey =
+        "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzjl/8eJg/Fu0EnMEdlpr7DkHAUXs5OpDduuoRBCs"
+        + "JJChRANCAASs4HiKlIMdERgbsk9M1p0UOGkHyx3PtmyWWfGUstwo5Ov/+L89eFzDgFcFdbxHGTWaAxYzswo1GQa"
+        + "3hMZspFd7";
+
+    /// <summary>
+    /// EnvJwtSigningProvider reading the key out of configuration, the way the running
+    /// app reads it out of the environment. Configuration rather than a real environment
+    /// variable keeps each test's key its own: env vars are process-global, and these
+    /// tests run in parallel.
+    /// </summary>
+    public static EnvJwtSigningProvider Signing(TimeProvider clock, string? key = null) =>
+        new(Configuration(EnvJwtSigningProvider.KeyVariable, key ?? SigningKey), clock);
+
+    /// <summary>Configuration holding exactly the given keys, and nothing from the machine.</summary>
+    public static IConfiguration Configuration(params string?[] keysAndValues) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(Enumerable
+                .Range(0, keysAndValues.Length / 2)
+                .Select(i => new KeyValuePair<string, string?>(keysAndValues[i * 2]!, keysAndValues[(i * 2) + 1]))
+                .ToList())
+            .Build();
 
     /// <summary>An empty SQLite database, held open for the lifetime of the connection.</summary>
     public static MedSignDb Database()

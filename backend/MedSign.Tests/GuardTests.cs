@@ -105,47 +105,6 @@ public class EcPointTests
     }
 }
 
-public class DotEnvTests
-{
-    [Fact]
-    public void Reads_values_and_ignores_comments_and_blank_lines()
-    {
-        using var root = new TempContentRoot();
-        File.WriteAllLines(root.EnvPath,
-        [
-            "# a comment",
-            string.Empty,
-            "KEY=value",
-            "  SPACED  =  padded  ",
-        ]);
-
-        var values = DotEnv.Read(root.EnvPath);
-
-        Assert.Equal("value", values["KEY"]);
-        Assert.Equal("padded", values["SPACED"]);
-        Assert.DoesNotContain("# a comment", values.Keys);
-    }
-
-    [Fact]
-    public void Reading_a_file_that_is_not_there_is_not_an_error()
-    {
-        using var root = new TempContentRoot();
-
-        Assert.Empty(DotEnv.Read(root.EnvPath));
-    }
-
-    [Fact]
-    public void Writing_an_existing_key_replaces_it_rather_than_appending()
-    {
-        using var root = new TempContentRoot();
-        DotEnv.Write(root.EnvPath, "KEY", "first");
-        DotEnv.Write(root.EnvPath, "KEY", "second");
-
-        Assert.Equal("second", DotEnv.Read(root.EnvPath)["KEY"]);
-        Assert.Single(File.ReadAllLines(root.EnvPath), line => line.StartsWith("KEY="));
-    }
-}
-
 public class RolesTests
 {
     [Theory]

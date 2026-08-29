@@ -9,7 +9,7 @@ public static class StartupBanner
 {
     public static void Print(WebApplication app, IServiceProvider services, MedSignDb db)
     {
-        var provider = services.GetRequiredService<ISigningProvider>();
+        var provider = services.GetRequiredService<IJwtSigningProvider>();
         var key = services.GetRequiredService<IJwtSigningKeyStore>().Current();
         var passkey = app.Configuration.GetSection("Passkey");
 
@@ -20,9 +20,9 @@ public static class StartupBanner
         Console.WriteLine($"  Accounts       : {db.Users.AsNoTracking().Count()} registered");
         Console.WriteLine($"  Signing        : {provider.Name}");
 
-        if (provider is EnvFileSigningProvider local)
+        if (provider is EnvJwtSigningProvider)
         {
-            PrintLocalKey(local);
+            PrintLocalKey();
         }
         else
         {
@@ -34,10 +34,10 @@ public static class StartupBanner
         Console.WriteLine();
     }
 
-    private static void PrintLocalKey(EnvFileSigningProvider local)
+    private static void PrintLocalKey()
     {
-        Console.WriteLine($"  Key file       : {local.KeyPath}");
-        Console.WriteLine("                   Anyone who can read that file can mint a doctor token.");
+        Console.WriteLine($"  Key source     : {EnvJwtSigningProvider.KeyVariable} (environment)");
+        Console.WriteLine("                   Anyone who can read that variable can mint a doctor token.");
     }
 
     private static void PrintHsm(IConfiguration hsm)

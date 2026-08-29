@@ -1,5 +1,6 @@
 using MedSign.Api.Data;
 using MedSign.Api.Hsm;
+using MedSign.Api.Signing;
 using Microsoft.Extensions.Options;
 
 namespace MedSign.Api.Startup;
@@ -21,7 +22,7 @@ public static class StartupTasks
     private static void ProvisionSigningKey(IServiceProvider services)
     {
         var store = services.GetRequiredService<IJwtSigningKeyStore>();
-        var provider = services.GetRequiredService<ISigningProvider>();
+        var provider = services.GetRequiredService<IJwtSigningProvider>();
         var label = services.GetRequiredService<IOptions<HsmOptions>>().Value.KeyLabel;
         var log = services.GetRequiredService<ILogger<Program>>();
 

@@ -3,11 +3,11 @@ using System.Text;
 using System.Text.Json;
 using MedSign.Api.Auth;
 using MedSign.Api.Data;
-using MedSign.Api.Hsm;
+using MedSign.Api.Signing;
 
 namespace MedSign.Api.Data;
 
-public sealed class JwtIssuer(Claims claims, ISigningProvider provider)
+public sealed class JwtIssuer(Claims claims, IJwtSigningProvider provider)
 {
     public string IssueJwt(User user, JwtSigningKey key)
     {

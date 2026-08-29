@@ -1,9 +1,9 @@
-using MedSign.Api.Hsm;
+using MedSign.Api.Signing;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Api.Data;
 
-public sealed class JwtSigningKeyStore(MedSignDb db, ISigningProvider provider) : IJwtSigningKeyStore
+public sealed class JwtSigningKeyStore(MedSignDb db, IJwtSigningProvider provider) : IJwtSigningKeyStore
 {
     public JwtSigningKey? Current() => db.JwtSigningKeys
         .AsNoTracking()
