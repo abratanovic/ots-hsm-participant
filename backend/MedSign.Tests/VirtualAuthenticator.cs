@@ -21,7 +21,7 @@ namespace MedSign.Tests;
 public sealed class VirtualAuthenticator : IDisposable
 {
     private const byte UserPresent = 0x01;
-    private const byte UserVerified = 0x04;
+    private const byte UserVerifiedFlag = 0x04;
     private const byte AttestedCredentialData = 0x40;
 
     /// <summary>"none" attestation says nothing about the make of the device, so it has no id.</summary>
@@ -39,8 +39,25 @@ public sealed class VirtualAuthenticator : IDisposable
     /// <summary>Where the browser claims to be running; the relying party checks it.</summary>
     public string Origin { get; init; } = Lab.Origin;
 
-    /// <summary>Goes up on every assertion, which is how a cloned authenticator gets caught.</summary>
-    public uint SignCount { get; private set; }
+    /// <summary>
+    /// The relying party this key signs for, when it is not the one that asked.
+    /// A passkey made for another site produces the right shape and the wrong
+    /// rpIdHash, which is the whole point of binding a credential to a domain.
+    /// </summary>
+    public string? RpIdOverride { get; init; }
+
+    /// <summary>
+    /// Overrides the ceremony type written into clientDataJSON ("webauthn.create"
+    /// on registration, "webauthn.get" on sign-in). Set it to the other one to
+    /// replay a registration answer into a sign-in, or the reverse.
+    /// </summary>
+    public string? ClientDataTypeOverride { get; init; }
+
+    /// <summary>
+    /// Goes up on every assertion, which is how a cloned authenticator gets caught.
+    /// Settable so a test can put this key exactly where the stored counter is.
+    /// </summary>
+    public uint SignCount { get; set; }
 
     /// <summary>The public half, as MedSign stores it: 0x04 || X || Y.</summary>
     public byte[] PublicKeyPoint
@@ -56,7 +73,7 @@ public sealed class VirtualAuthenticator : IDisposable
     public PasskeyRegistration Register(CredentialCreateOptions ceremony)
     {
         var clientData = ClientData("webauthn.create", ceremony.Challenge);
-        var authenticatorData = AuthenticatorData(ceremony.Rp.Id, attested: true);
+        var authenticatorData = AuthenticatorData(RpIdOverride ?? ceremony.Rp.Id, attested: true);
 
         return new PasskeyRegistration(
             Id: Base64Url.Encode(CredentialId),
@@ -78,7 +95,7 @@ public sealed class VirtualAuthenticator : IDisposable
         SignCount++;
 
         var clientData = ClientData("webauthn.get", ceremony.Challenge);
-        var authenticatorData = AuthenticatorData(ceremony.RpId ?? Lab.RpId, attested: false);
+        var authenticatorData = AuthenticatorData(RpIdOverride ?? ceremony.RpId ?? Lab.RpId, attested: false);
 
         var signature = _key.SignData(
             [.. authenticatorData, .. SHA256.HashData(clientData)],
@@ -100,7 +117,7 @@ public sealed class VirtualAuthenticator : IDisposable
 
     private byte[] ClientData(string type, byte[] challenge) => Encoding.UTF8.GetBytes(
         $$"""
-        {"type":"{{type}}","challenge":"{{Base64Url.Encode(challenge)}}","origin":"{{Origin}}","crossOrigin":false}
+        {"type":"{{ClientDataTypeOverride ?? type}}","challenge":"{{Base64Url.Encode(challenge)}}","origin":"{{Origin}}","crossOrigin":false}
         """);
 
     /// <summary>
@@ -112,7 +129,7 @@ public sealed class VirtualAuthenticator : IDisposable
         var counter = new byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(counter, SignCount);
 
-        var flags = (byte)(UserPresent | UserVerified | (attested ? AttestedCredentialData : 0));
+        var flags = (byte)(UserPresent | UserVerifiedFlag | (attested ? AttestedCredentialData : 0));
 
         byte[] header = [.. SHA256.HashData(Encoding.UTF8.GetBytes(rpId)), flags, .. counter];
 
@@ -153,5 +170,19 @@ public sealed class VirtualAuthenticator : IDisposable
         cbor.WriteEndMap();
 
         return cbor.Encode();
+    }
+
+    /// <summary>
+    /// Changes one byte of a base64url field, leaving everything around it intact.
+    ///
+    /// This is what an answer that was interfered with in flight looks like: the
+    /// shapes all still parse, and only the signature says so.
+    /// </summary>
+    public static string Flip(string base64UrlValue, int index = 0)
+    {
+        var bytes = Base64Url.Decode(base64UrlValue);
+        bytes[index] ^= 0xFF;
+
+        return Base64Url.Encode(bytes);
     }
 }
