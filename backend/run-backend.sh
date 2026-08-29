@@ -41,6 +41,18 @@ fi
 # creates a second entry later.
 [ -e MedSign.Api/.env ] || : > MedSign.Api/.env
 
+# The signing key is part of the stack's configuration, so docker-compose.yml is
+# allowed to pin one. The app only ever looks in .env, so a key handed to the
+# container as MEDSIGN_JWT_SIGNING_KEY is written there before the app starts.
+# Empty (the default) leaves the file alone and the app generates its own.
+if [ -n "${MEDSIGN_JWT_SIGNING_KEY:-}" ]; then
+    kept=$(grep -v '^MEDSIGN_JWT_SIGNING_KEY=' MedSign.Api/.env)
+    # Truncate and rewrite in place. Writing a temp file and moving it over
+    # would create new directory entries under the watcher's feet, which is
+    # the thing this script exists to avoid.
+    { echo "$kept"; echo "MEDSIGN_JWT_SIGNING_KEY=$MEDSIGN_JWT_SIGNING_KEY"; } > MedSign.Api/.env
+fi
+
 # Restore once, up front. The test gate builds MedSign.Tests through an MSBuild
 # task, which does not restore, and dotnet watch only knows about MedSign.Api
 # and the projects it references.
