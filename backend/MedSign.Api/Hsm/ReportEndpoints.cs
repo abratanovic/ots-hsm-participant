@@ -48,6 +48,16 @@ public static class ReportEndpoints
         })
             .RequireRole(Roles.Doctor, Roles.Patient)
             .WithName("DownloadReportDocument");
+
+        // A GET, because asking whether a document is genuine changes nothing
+        // about it -- and 200 whatever the answer, including "this is not
+        // genuine". That is a successful answer to the question asked; a 4xx
+        // would mean the question could not be asked at all.
+        group.MapGet("/{id:guid}/verification", async (HttpContext context, Guid id,
+                ReportVerification verification, CancellationToken cancellationToken) =>
+            Results.Ok(await verification.CheckAsync(context.Session(), id, cancellationToken)))
+            .RequireRole(Roles.Doctor, Roles.Patient)
+            .WithName("VerifyReport");
     }
 }
 

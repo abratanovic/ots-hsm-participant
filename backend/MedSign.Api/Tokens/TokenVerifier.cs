@@ -176,18 +176,5 @@ public static class TokenVerifier
         return null;
     }
 
-    public static ECDsa PublicKey(JwtSigningKey key)
-    {
-        EcPoint.EnsureUncompressedP256(key.EcPoint);
-
-        return ECDsa.Create(new ECParameters
-        {
-            Curve = ECCurve.NamedCurves.nistP256,
-            Q = new System.Security.Cryptography.ECPoint
-            {
-                X = EcPoint.X(key.EcPoint),
-                Y = EcPoint.Y(key.EcPoint),
-            },
-        });
-    }
+    public static ECDsa PublicKey(JwtSigningKey key) => EcPoint.Verifier(key.EcPoint);
 }

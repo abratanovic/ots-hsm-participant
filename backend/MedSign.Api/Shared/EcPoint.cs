@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using MedSign.Api.Hsm;
 
 namespace MedSign.Api.Shared;
@@ -29,6 +30,26 @@ public static class EcPoint
     public static byte[] X(byte[] point) => point[1..(1 + Pkcs11Constants.P256CoordinateBytes)];
 
     public static byte[] Y(byte[] point) => point[(1 + Pkcs11Constants.P256CoordinateBytes)..];
+
+    /// <summary>
+    /// An ECDsa that can check signatures made by the private half of this
+    /// point, and nothing else -- there is no private key on this side of the
+    /// device at all.
+    ///
+    /// One place rather than two, because MedSign now verifies with stored
+    /// points in two situations that must not drift apart: its own session
+    /// tokens, and a doctor's signature on a report.
+    /// </summary>
+    public static ECDsa Verifier(byte[] point)
+    {
+        EnsureUncompressedP256(point);
+
+        return ECDsa.Create(new ECParameters
+        {
+            Curve = ECCurve.NamedCurves.nistP256,
+            Q = new ECPoint { X = X(point), Y = Y(point) },
+        });
+    }
 
     public static void EnsureUncompressedP256(byte[] point)
     {

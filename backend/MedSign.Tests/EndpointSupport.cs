@@ -278,6 +278,9 @@ public static class Api
     /// <summary>That report's PDF.</summary>
     public static string Document(string id) => $"{Reports}/{id}/document";
 
+    /// <summary>The question that report exists to answer.</summary>
+    public static string Verification(string id) => $"{Reports}/{id}/verification";
+
     public static async Task<Answer> PostAsync(
         this HttpClient client, string route, object? body = null, string? token = null)
     {
