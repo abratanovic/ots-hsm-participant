@@ -1,10 +1,12 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using MedSign.Api.Hsm.Contracts;
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Shared;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Reports;
 
 public sealed class ReportIssuing(
     MedSignDb db,
@@ -129,8 +131,6 @@ public sealed class ReportIssuing(
                 + "patients.");
     }
 }
-
-public sealed record IssueReport(int PatientId, string? Type, string? Body);
 
 public static class DownloadName
 {

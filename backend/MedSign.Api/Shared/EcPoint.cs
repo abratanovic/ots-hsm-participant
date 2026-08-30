@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
 
 namespace MedSign.Api.Shared;
 

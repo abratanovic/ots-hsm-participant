@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Reports;
 
 public sealed class ReportStorageOptions
 {

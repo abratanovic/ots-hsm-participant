@@ -1,4 +1,5 @@
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
+using MedSign.Api.Hsm.Reports;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Tokens;
 using Microsoft.EntityFrameworkCore;

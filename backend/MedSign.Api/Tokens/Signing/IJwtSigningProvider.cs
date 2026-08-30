@@ -1,4 +1,3 @@
-using MedSign.Api.Hsm;
 
 namespace MedSign.Api.Tokens;
 

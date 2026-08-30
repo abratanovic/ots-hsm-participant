@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
+using MedSign.Api.Hsm.Contracts;
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Shared;
 using MedSign.Api.Shared.Auth;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Reports;
 
 public sealed class ReportVerification(
     MedSignDb db, ReportAccess reports, ReportStorage storage, TimeProvider clock)
@@ -67,10 +69,3 @@ public static class VerificationOutcomes
 
     public const string UnknownSigner = "unknown-signer";
 }
-
-public sealed record VerificationView(
-    Guid ReportId,
-    string Outcome,
-    DateTimeOffset CheckedAt,
-    string Algorithm,
-    PartyView Doctor);

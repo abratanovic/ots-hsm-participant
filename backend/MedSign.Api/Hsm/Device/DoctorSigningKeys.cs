@@ -2,7 +2,7 @@ using MedSign.Api.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Device;
 
 public sealed class DoctorSigningKeys(
     MedSignDb db,

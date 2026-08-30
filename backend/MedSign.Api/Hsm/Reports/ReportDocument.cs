@@ -2,7 +2,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Reports;
 
 public sealed record ReportContent(
     DateTimeOffset IssuedAt,

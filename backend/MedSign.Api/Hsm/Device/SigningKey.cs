@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using MedSign.Api.Shared;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Device;
 
 public sealed class SigningKey
 {

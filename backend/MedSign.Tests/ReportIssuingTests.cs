@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
+using MedSign.Api.Hsm.Reports;
 using MedSign.Api.Shared;
 using Microsoft.EntityFrameworkCore;
 using UglyToad.PdfPig;

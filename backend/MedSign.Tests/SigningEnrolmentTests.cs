@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Contracts;
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Shared;
 using Microsoft.EntityFrameworkCore;
 

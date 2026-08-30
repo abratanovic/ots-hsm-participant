@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Reports;
 using MedSign.Api.Shared;
 
 namespace MedSign.Tests;

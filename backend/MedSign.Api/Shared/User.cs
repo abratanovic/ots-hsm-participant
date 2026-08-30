@@ -1,4 +1,4 @@
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Passkeys;
 
 namespace MedSign.Api.Shared;

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Fido2NetLib;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
+using MedSign.Api.Hsm.Reports;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Shared;
 using MedSign.Api.Tokens;

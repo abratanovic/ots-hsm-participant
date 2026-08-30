@@ -2,7 +2,7 @@ using MedSign.Api.Shared;
 using MedSign.Api.Shared.Auth;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Endpoints;
 
 public static class PatientEndpoints
 {

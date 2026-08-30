@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Shared;
 using MedSign.Api.Shared.Auth;
 

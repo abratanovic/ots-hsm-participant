@@ -1,7 +1,9 @@
+using MedSign.Api.Hsm.Contracts;
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Shared;
 using MedSign.Api.Shared.Auth;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Endpoints;
 
 public static class SigningEndpoints
 {
@@ -17,17 +19,4 @@ public static class SigningEndpoints
             Results.Ok(SigningStatus.Of(keys.Enable(context.Session().UserId))))
             .WithName("EnableSigning");
     }
-}
-
-public sealed record SigningStatus(
-    bool Enabled,
-    string? PublicKeyFingerprint = null,
-    DateTimeOffset? CreatedAt = null)
-{
-    public static SigningStatus Of(SigningKey? key) => key is null
-        ? new SigningStatus(false)
-        : new SigningStatus(
-            true,
-            SigningKey.Fingerprint(key.PublicKeyPoint),
-            key.CreatedAt);
 }

@@ -1,4 +1,4 @@
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Device;
 
 public interface IDocumentSigner
 {

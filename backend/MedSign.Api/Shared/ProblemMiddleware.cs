@@ -1,5 +1,5 @@
 using Fido2NetLib;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
 using Net.Pkcs11Interop.Common;
 
 namespace MedSign.Api.Shared;

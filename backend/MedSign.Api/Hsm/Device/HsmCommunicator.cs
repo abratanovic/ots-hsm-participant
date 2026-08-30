@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Net.Pkcs11Interop.Common;
 using Net.Pkcs11Interop.HighLevelAPI;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Device;
 
 public sealed class HsmCommunicator : IDisposable
 {

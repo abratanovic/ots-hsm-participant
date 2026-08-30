@@ -1,4 +1,4 @@
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Endpoints;
 using MedSign.Api.Passkeys;
 using MedSign.Api.Shared;
 using MedSign.Api.Shared.Auth;

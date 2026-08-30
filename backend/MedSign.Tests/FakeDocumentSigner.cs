@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using MedSign.Api.Hsm;
+using MedSign.Api.Hsm.Device;
 
 namespace MedSign.Tests;
 

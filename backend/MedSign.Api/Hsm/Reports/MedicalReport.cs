@@ -1,6 +1,7 @@
+using MedSign.Api.Hsm.Device;
 using MedSign.Api.Shared;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Reports;
 
 public sealed class MedicalReport
 {

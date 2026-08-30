@@ -3,7 +3,7 @@ using MedSign.Api.Shared;
 using MedSign.Api.Shared.Auth;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedSign.Api.Hsm;
+namespace MedSign.Api.Hsm.Reports;
 
 public sealed class ReportAccess(MedSignDb db, ReportStorage storage)
 {
