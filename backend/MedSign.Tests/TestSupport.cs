@@ -1,17 +1,14 @@
 using System.Security.Cryptography;
 using Fido2NetLib;
-using MedSign.Api.Auth;
-using MedSign.Api.Auth.Passkey;
-using MedSign.Api.Data;
-using MedSign.Api.Lab;
+using MedSign.Api.Passkeys;
+using MedSign.Api.Shared;
+using MedSign.Api.Tokens;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace MedSign.Tests;
 
-/// <summary>A clock the test moves by hand, so nothing here waits on wall time.</summary>
 public sealed class TestClock(DateTimeOffset now) : TimeProvider
 {
     private DateTimeOffset _now = now;
@@ -25,43 +22,26 @@ public sealed class TestClock(DateTimeOffset now) : TimeProvider
     public void Advance(TimeSpan by) => _now += by;
 }
 
-/// <summary>
-/// A throwaway directory that deletes itself. EnvFileSigningProvider writes a real
-/// .env, so the tests give it a real -- but disposable -- content root.
-/// </summary>
-public sealed class TempContentRoot : IHostEnvironment, IDisposable
-{
-    public TempContentRoot()
-    {
-        ContentRootPath = Path.Combine(Path.GetTempPath(), "medsign-tests", Guid.NewGuid().ToString("n"));
-        Directory.CreateDirectory(ContentRootPath);
-    }
-
-    public string EnvironmentName { get; set; } = Environments.Development;
-    public string ApplicationName { get; set; } = "MedSign.Tests";
-    public string ContentRootPath { get; set; }
-    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
-
-    public string EnvPath => Path.Combine(ContentRootPath, ".env");
-
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(ContentRootPath, recursive: true);
-        }
-        catch (IOException)
-        {
-            // A leftover temp directory is not worth failing a test over.
-        }
-    }
-}
-
 public static class Build
 {
     public static IOptions<T> Options<T>(T value) where T : class => Microsoft.Extensions.Options.Options.Create(value);
 
-    /// <summary>An empty SQLite database, held open for the lifetime of the connection.</summary>
+    public const string SigningKey =
+        "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzjl/8eJg/Fu0EnMEdlpr7DkHAUXs5OpDduuoRBCs"
+        + "JJChRANCAASs4HiKlIMdERgbsk9M1p0UOGkHyx3PtmyWWfGUstwo5Ov/+L89eFzDgFcFdbxHGTWaAxYzswo1GQa"
+        + "3hMZspFd7";
+
+    public static EnvJwtSigningProvider Signing(TimeProvider clock, string? key = null) =>
+        new(Configuration(EnvJwtSigningProvider.KeyVariable, key ?? SigningKey), clock);
+
+    public static IConfiguration Configuration(params string?[] keysAndValues) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(Enumerable
+                .Range(0, keysAndValues.Length / 2)
+                .Select(i => new KeyValuePair<string, string?>(keysAndValues[i * 2]!, keysAndValues[(i * 2) + 1]))
+                .ToList())
+            .Build();
+
     public static MedSignDb Database()
     {
         var options = new DbContextOptionsBuilder<MedSignDb>()
@@ -83,7 +63,6 @@ public static class Build
         Role = Roles.Doctor,
     };
 
-    /// <summary>A stored passkey, shaped the way a finished registration leaves it.</summary>
     public static PasskeyCredential Credential(
         byte[] credentialId,
         byte[] publicKeyPoint,
@@ -97,28 +76,14 @@ public static class Build
     };
 }
 
-/// <summary>
-/// MedSignPasskeys wired the way Program.cs wires it, with the pieces around it
-/// left reachable so a test can look at what the exercise did: the challenge
-/// store it was supposed to hold the ceremony in, and the database it was
-/// supposed to consult.
-/// </summary>
 public sealed class Lab
 {
-    /// <summary>The one origin the relying party accepts; anything else is a different site.</summary>
     public const string Origin = "http://localhost:4200";
 
-    /// <summary>
-    /// Somewhere MedSign is not. Deliberately not a localhost port: every port in
-    /// the workshop stack is one configuration change away from being an origin
-    /// this relying party accepts, and a test that says "refuse this" must not be
-    /// one edit of appsettings.json away from meaning the opposite.
-    /// </summary>
     public const string ForeignOrigin = "https://medsign-clone.example";
 
     public const string RpId = "localhost";
 
-    /// <summary>How long a held ceremony stays spendable; the tests move <see cref="Clock"/> past it.</summary>
     public static readonly TimeSpan ChallengeLifetime = TimeSpan.FromMinutes(5);
 
     public Lab()
@@ -142,7 +107,6 @@ public sealed class Lab
 
     public IFido2 Fido2 { get; }
 
-    /// <summary>The clock the challenge store reads, so a test can let a held ceremony go stale.</summary>
     public TestClock Clock { get; }
 
     public PasskeyChallengeStore Challenges { get; }
@@ -151,11 +115,6 @@ public sealed class Lab
 
     public MedSignPasskeys Passkeys { get; }
 
-    /// <summary>
-    /// An account that already holds this authenticator's passkey -- the state the
-    /// registration ceremony leaves behind, written straight to the database so the
-    /// sign-in tests do not also depend on the registration exercise.
-    /// </summary>
     public User Enrol(
         VirtualAuthenticator authenticator,
         string username = "h.novak",
@@ -180,15 +139,6 @@ public sealed class Lab
     }
 }
 
-/// <summary>
-/// Marks a test that checks work a participant has not done yet.
-///
-/// While the exercise still throws NotImplementedException the test reports as
-/// skipped, so the gate lets the backend start -- you cannot be blocked by an
-/// exercise you have not reached. The moment there is real code behind it the
-/// exception stops coming, the assertions run for real, and a wrong
-/// implementation now stops the backend like any other failure.
-/// </summary>
 public static class Exercise
 {
     private const string Pending = "Not implemented yet -- this is the exercise.";
@@ -202,7 +152,7 @@ public static class Exercise
         catch (NotImplementedException)
         {
             Assert.Skip(Pending);
-            throw; // Unreachable: Assert.Skip does not return.
+            throw;
         }
     }
 
@@ -215,21 +165,10 @@ public static class Exercise
         catch (NotImplementedException)
         {
             Assert.Skip(Pending);
-            throw; // Unreachable: Assert.Skip does not return.
+            throw;
         }
     }
 
-    /// <summary>
-    /// True when MedSign turned the ceremony down: either by handing back nothing,
-    /// or by letting the library's verification exception through. Both are
-    /// refusals, and which one a method gives depends on how it was written --
-    /// what matters is that a ceremony MedSign cannot vouch for is never accepted.
-    ///
-    /// Crashing is not a refusal. A NullReferenceException (and friends) means the
-    /// method walked off the end of its own happy path, which reaches the endpoint
-    /// as a 500 rather than a rejected sign-in, so those are reported as failures
-    /// with the exception that caused them.
-    /// </summary>
     public static async Task<bool> RefusedOrSkipAsync<T>(Func<Task<T?>> act) where T : class
     {
         try
@@ -239,7 +178,7 @@ public static class Exercise
         catch (NotImplementedException)
         {
             Assert.Skip(Pending);
-            throw; // Unreachable: Assert.Skip does not return.
+            throw;
         }
         catch (Exception exception) when (IsCrash(exception))
         {
@@ -249,7 +188,7 @@ public static class Exercise
                 + "Fido2NetLib's verification exception through. Reaching this line means something was "
                 + "read before it was checked.\n"
                 + exception.StackTrace);
-            return false; // Unreachable: Assert.Fail does not return.
+            return false;
         }
         catch (Exception)
         {
@@ -257,7 +196,6 @@ public static class Exercise
         }
     }
 
-    /// <summary>A bug dressed as a rejection: nothing here is a decision the method made.</summary>
     private static bool IsCrash(Exception exception) => exception
         is NullReferenceException
         or IndexOutOfRangeException

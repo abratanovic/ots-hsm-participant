@@ -20,6 +20,7 @@
   <ItemGroup>
     <!-- v3, not v2: Assert.Skip is what lets an exercise nobody has started yet
          report as pending instead of failing and blocking the backend. -->
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="xunit.v3" Version="4.0.0" />
 
     <!-- Runs the real application in memory, so the endpoint exercises are

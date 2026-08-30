@@ -1,12 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using MedSign.Api.Auth;
-using MedSign.Api.Auth.Passkey;
-using MedSign.Api.Data;
-using MedSign.Api.Hsm;
-using MedSign.Api.Signing;
 using Fido2NetLib;
+using MedSign.Api.Shared;
+using MedSign.Api.Tokens;
 
 namespace MedSign.Tests;
 
@@ -49,22 +46,13 @@ public class ClaimsTests
     }
 }
 
-/// <summary>
-/// The .env provider is exercise 1's "before" picture. It has to actually work --
-/// the point of the exercise is that it works and is still a bad idea.
-/// </summary>
-public class EnvFileSigningProviderTests
+public class EnvJwtSigningProviderTests
 {
     [Fact]
-    public void Generates_a_key_on_first_use_and_writes_it_to_the_env_file()
+    public void Provisions_the_key_the_environment_hands_it()
     {
-        using var root = new TempContentRoot();
-        var provider = new EnvFileSigningProvider(root, new TestClock());
+        var key = Build.Signing(new TestClock()).ProvisionSigningKey("medsign-jwt-signing");
 
-        var key = provider.ProvisionSigningKey("medsign-jwt-signing");
-
-        Assert.True(File.Exists(root.EnvPath));
-        Assert.NotEmpty(DotEnv.Read(root.EnvPath)[EnvFileSigningProvider.KeyVariable]);
         Assert.Equal("medsign-jwt-signing", key.Label);
         EcPoint.EnsureUncompressedP256(key.EcPoint);
     }
@@ -72,43 +60,56 @@ public class EnvFileSigningProviderTests
     [Fact]
     public void Derives_the_kid_from_the_public_point()
     {
-        using var root = new TempContentRoot();
-
-        var key = new EnvFileSigningProvider(root, new TestClock()).ProvisionSigningKey("k");
+        var key = Build.Signing(new TestClock()).ProvisionSigningKey("k");
 
         Assert.Equal(Base64Url.Encode(SHA256.HashData(key.EcPoint)), key.Kid);
     }
 
     [Fact]
-    public void Reuses_the_key_already_in_the_file_instead_of_rotating_it()
+    public void Keeps_the_same_key_across_calls_instead_of_rotating_it()
     {
-        using var root = new TempContentRoot();
-        var provider = new EnvFileSigningProvider(root, new TestClock());
+        var provider = Build.Signing(new TestClock());
 
         Assert.Equal(provider.ProvisionSigningKey("k").Kid, provider.ProvisionSigningKey("k").Kid);
     }
 
     [Fact]
+    public void Two_instances_reading_the_same_variable_agree_on_the_key()
+    {
+        var clock = new TestClock();
+
+        Assert.Equal(
+            Build.Signing(clock).ProvisionSigningKey("k").Kid,
+            Build.Signing(clock).ProvisionSigningKey("k").Kid);
+    }
+
+    [Fact]
     public void Produces_a_signature_the_public_point_verifies()
     {
-        using var root = new TempContentRoot();
-        var provider = new EnvFileSigningProvider(root, new TestClock());
+        var provider = Build.Signing(new TestClock());
         var key = provider.ProvisionSigningKey("k");
         var digest = SHA256.HashData("a prescription"u8.ToArray());
 
         var signature = provider.SignDigest("k", digest);
 
-        Assert.Equal(64, signature.Length); // Raw R||S, not DER -- JWS requires it.
+        Assert.Equal(64, signature.Length);
         Assert.True(Verify.P256(key.EcPoint, digest, signature));
     }
 
     [Fact]
-    public void Says_so_clearly_when_the_key_line_has_been_corrupted()
+    public void Says_so_clearly_when_the_variable_is_not_set()
     {
-        using var root = new TempContentRoot();
-        var provider = new EnvFileSigningProvider(root, new TestClock());
-        provider.ProvisionSigningKey("k");
-        DotEnv.Write(root.EnvPath, EnvFileSigningProvider.KeyVariable, "not-a-key");
+        var provider = Build.Signing(new TestClock(), key: string.Empty);
+
+        var failure = Assert.Throws<InvalidOperationException>(() => provider.ProvisionSigningKey("k"));
+
+        Assert.Contains(EnvJwtSigningProvider.KeyVariable, failure.Message);
+    }
+
+    [Fact]
+    public void Says_so_clearly_when_the_key_has_been_corrupted()
+    {
+        var provider = Build.Signing(new TestClock(), key: "not-a-key");
 
         var failure = Assert.Throws<InvalidOperationException>(() => provider.ProvisionSigningKey("k"));
 
@@ -116,20 +117,14 @@ public class EnvFileSigningProviderTests
     }
 }
 
-/// <summary>
-/// The JWT MedSign issues has to be a real ES256 token: three segments, a kid the
-/// JWKS can be looked up by, and a signature over exactly the bytes a verifier
-/// will reconstruct. Getting the signing input even one byte wrong still produces
-/// a token that looks fine and verifies nowhere.
-/// </summary>
 public class JwtIssuerTests
 {
     private sealed record Issued(string Token, JwtSigningKey Key);
 
-    private static Issued Issue(TempContentRoot root)
+    private static Issued Issue()
     {
         var clock = new TestClock();
-        var provider = new EnvFileSigningProvider(root, clock);
+        var provider = Build.Signing(clock);
         var key = provider.ProvisionSigningKey("medsign-jwt-signing");
         var claims = new Claims(Build.Options(new JwtOptions()), clock);
 
@@ -139,16 +134,13 @@ public class JwtIssuerTests
     [Fact]
     public void Issues_three_dot_separated_segments()
     {
-        using var root = new TempContentRoot();
-
-        Assert.Equal(3, Issue(root).Token.Split('.').Length);
+        Assert.Equal(3, Issue().Token.Split('.').Length);
     }
 
     [Fact]
     public void Names_ES256_and_the_kid_in_the_header()
     {
-        using var root = new TempContentRoot();
-        var issued = Issue(root);
+        var issued = Issue();
 
         var header = JsonDocument.Parse(Base64Url.Decode(issued.Token.Split('.')[0])).RootElement;
 
@@ -160,9 +152,7 @@ public class JwtIssuerTests
     [Fact]
     public void Carries_the_signed_in_account_in_the_payload()
     {
-        using var root = new TempContentRoot();
-
-        var payload = JsonDocument.Parse(Base64Url.Decode(Issue(root).Token.Split('.')[1])).RootElement;
+        var payload = JsonDocument.Parse(Base64Url.Decode(Issue().Token.Split('.')[1])).RootElement;
 
         Assert.Equal("7", payload.GetProperty("sub").GetString());
         Assert.Equal(Roles.Doctor, payload.GetProperty("role").GetString());
@@ -171,8 +161,7 @@ public class JwtIssuerTests
     [Fact]
     public void Signs_the_header_and_payload_that_a_verifier_will_reconstruct()
     {
-        using var root = new TempContentRoot();
-        var issued = Issue(root);
+        var issued = Issue();
         var segments = issued.Token.Split('.');
 
         var signingInput = Encoding.ASCII.GetBytes($"{segments[0]}.{segments[1]}");
@@ -183,8 +172,7 @@ public class JwtIssuerTests
     [Fact]
     public void Does_not_verify_once_a_claim_has_been_tampered_with()
     {
-        using var root = new TempContentRoot();
-        var issued = Issue(root);
+        var issued = Issue();
         var segments = issued.Token.Split('.');
 
         var forged = Base64Url.Encode(

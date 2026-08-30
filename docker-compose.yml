@@ -1,6 +1,12 @@
 services:
   backend:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    # The .NET SDK plus a PKCS#11 module for the YubiHSM, built for the
+    # architecture of the machine this is running on. See docker/backend/Dockerfile.
+    # The published image is multi-architecture, so `up` normally just pulls; the
+    # build stanza is the fallback if it cannot be reached.
+    image: ${BACKEND_IMAGE:-abratanov/medsign-backend:latest}
+    build:
+      context: ./docker/backend
     container_name: medsign-backend
     working_dir: /src
     command: bash /src/run-backend.sh
@@ -13,12 +19,35 @@ services:
       # ---- Storage -------------------------------------------------------
       ConnectionStrings__MedSign: Data Source=/app/data/medsign.db
 
+      # Report PDFs, beside the database in the same bind mount. It is the only
+      # path that survives the watcher restarting the app, and the signature
+      # over a file that is gone cannot be checked again.
+      Storage__Root: /app/data
+
       MEDSIGN_ARTIFACTS: /artifacts
       MEDSIGN_STATUS_DIR: /status
 
       # ---- HSM / PKCS#11 -------------------------------------------------
       Hsm__ModulePath: ${HSM_MODULE_PATH:-/usr/lib/pkcs11/yubihsm_pkcs11.so}
-      Hsm__ConfPath: ""
+
+      # Where run-backend.sh writes the connector address, and where the PKCS#11
+      # module is told to read it. The two have to agree, so they share a
+      # variable. Set HSM_CONNECTOR_URL in .env to reach a connector that is not
+      # on this machine at the default port.
+      Hsm__ConfPath: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
+      HSM_CONF_PATH: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
+      HSM_CONNECTOR_URL: ${HSM_CONNECTOR_URL:-http://host.docker.internal:12345}
+
+      # The module reads this with getenv(), so it has to be in the real process
+      # environment -- which is here, and only here. HsmCommunicator also sets it
+      # from Hsm:ConfPath, but Environment.SetEnvironmentVariable on .NET for
+      # Linux writes to a managed copy that no native library can see. That call
+      # does reach native code on Windows, which is where this application was
+      # first run, so the omission stayed invisible until it ran in a container:
+      # the module simply found no configuration and refused to start, as
+      # CKR_ARGUMENTS_BAD out of C_Initialize.
+      YUBIHSM_PKCS11_CONF: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
+
       Hsm__KeyLabel: medsign-jwt-signing
       MEDSIGN_HSM_PIN: ${MEDSIGN_HSM_PIN:-}
 
@@ -35,7 +64,12 @@ services:
       Jwt__Audience: medsign-cloud
       Jwt__LifetimeMinutes: "60"
 
-      MEDSIGN_JWT_SIGNING_KEY: ${MEDSIGN_JWT_SIGNING_KEY:-}
+      # The JWT signing key: an EC P-256 private key, PKCS#8, base64. Exercise 1 is
+      # about the fact that you can read it right here, in a file that is committed
+      # to this repository -- and that anyone who can is a doctor on every instance
+      # of MedSign in the room. Exercise 2 is about fixing that. Override it in .env
+      # if you want your own.
+      MEDSIGN_JWT_SIGNING_KEY: "${MEDSIGN_JWT_SIGNING_KEY:-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgkjvRAiTO7MWILv7SF9Tbwy3/NZdE0s5bNS7dWglwKb6hRANCAATWnZ/NfLtprWztwxk/LPx6uPgXURM2HEDCEJUd8jY2/GXx1/gpQ5VQybPJVnbKa9BGLcOE9XP7k5HhpS6cgaGR}"
 
       # ---- dotnet watch --------------------------------------------------
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
@@ -50,6 +84,10 @@ services:
       - nuget:/root/.nuget/packages
     ports:
       - "${BACKEND_PORT:-5050}:${BACKEND_PORT:-5050}"
+    # Docker Desktop resolves host.docker.internal on its own; a Linux host does
+    # not, and the connector is only ever reachable there. Harmless on Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     tty: true
     stdin_open: true
 

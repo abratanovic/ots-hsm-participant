@@ -1,6 +1,3 @@
-# Written by the backend on first run. Holds the JWT signing key in clear text.
-backend/MedSign.Api/.env
-
 # Build output. Produced inside the container, by Linux, for Linux -- your host
 # has no .NET and never needs to look in here.
 backend/**/bin/
@@ -20,3 +17,9 @@ data/*
 
 # Local port/secret overrides. .env.example is the documented template.
 .env
+
+# Local agent-skill config and working notes. This is a shared workshop repo --
+# specs, issues and agent instructions stay on this machine.
+.scratch/
+docs/
+CLAUDE.md
