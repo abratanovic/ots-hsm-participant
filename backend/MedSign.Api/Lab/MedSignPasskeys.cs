@@ -18,7 +18,7 @@ public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challeng
     {
         // TODO 1/8: Build CredentialCreateOptions, issue the registration
         // ceremony under the normalized username, and return the options.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L14-L41
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/MedSignPasskeys.cs#L12-L39
         throw new NotImplementedException(
             "Exercise 1/8: start the registration ceremony in MedSignPasskeys.BeginRegistration.");
     }
@@ -29,7 +29,7 @@ public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challeng
     {
         // TODO 3/8: Consume the original ceremony, verify the browser response,
         // reject duplicate credential IDs, and return the verified public data.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L43-L69
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/MedSignPasskeys.cs#L41-L67
         throw new NotImplementedException(
             "Exercise 3/8: complete the registration ceremony in MedSignPasskeys.CompleteRegistrationAsync.");
     }
@@ -38,7 +38,7 @@ public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challeng
     {
         // TODO 5/8: Load the account, offer only its credential IDs, issue a
         // fresh assertion ceremony, and still answer unknown usernames safely.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L71-L84
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/MedSignPasskeys.cs#L69-L82
         throw new NotImplementedException(
             "Exercise 5/8: start the sign-in ceremony in MedSignPasskeys.BeginSignInAsync.");
     }
@@ -50,7 +50,7 @@ public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challeng
         // TODO 7/8: Consume the assertion ceremony, find the stored credential,
         // verify the signature, counter, RP context and user handle, then return
         // the account, credential and new signature counter.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Lab/MedSignPasskeys.cs#L86-L116
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/MedSignPasskeys.cs#L84-L114
         throw new NotImplementedException(
             "Exercise 7/8: complete the sign-in ceremony in MedSignPasskeys.CompleteSignInAsync.");
     }
