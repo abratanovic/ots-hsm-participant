@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using MedSign.Api.Auth;
-using MedSign.Api.Passkeys;
+using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
 using MedSign.Api.Hsm;
 using MedSign.Api.Signing;

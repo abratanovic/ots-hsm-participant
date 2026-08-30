@@ -1,6 +1,4 @@
-using MedSign.Api.Auth;
-
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Auth.Passkey;
 
 public sealed class PasskeyCredential
 {

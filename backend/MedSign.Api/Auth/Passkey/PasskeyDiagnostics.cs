@@ -1,9 +1,7 @@
 using System.Security.Cryptography;
 using MedSign.Api.Hsm;
 
-using MedSign.Api.Auth;
-
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Auth.Passkey;
 
 public static class PasskeyDiagnostics
 {

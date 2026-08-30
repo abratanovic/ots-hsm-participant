@@ -20,7 +20,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 1,
     title: 'Ask for a passkey',
-    file: 'Passkeys/MedSignPasskeys.cs',
+    file: 'Lab/MedSignPasskeys.cs',
     match: 'MedSign.Tests.ExerciseOne',
     summary:
       'Registration begins with MedSign deciding what the browser should make: which relying ' +
@@ -38,7 +38,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 2,
     title: 'Hand the ceremony to the browser',
-    file: 'Passkeys/Endpoints/RegistrationEndpoints.cs',
+    file: 'Endpoints/RegistrationEndpoints.cs',
     match: 'MedSign.Tests.ExerciseTwo',
     summary:
       'The ceremony has to reach navigator.credentials.create as JSON, which means every ' +
@@ -56,7 +56,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 3,
     title: 'Verify what the authenticator made',
-    file: 'Passkeys/MedSignPasskeys.cs',
+    file: 'Lab/MedSignPasskeys.cs',
     match: 'MedSign.Tests.ExerciseThree',
     summary:
       'The browser answers with an attestation object. Fido2NetLib checks the signature, the ' +
@@ -74,7 +74,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 4,
     title: 'Open the account',
-    file: 'Passkeys/Endpoints/RegistrationEndpoints.cs',
+    file: 'Endpoints/RegistrationEndpoints.cs',
     match: 'MedSign.Tests.ExerciseFour',
     summary:
       'What gets stored here is what every later sign-in is checked against: the credential ' +
@@ -92,7 +92,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 5,
     title: 'Offer the keys that may answer',
-    file: 'Passkeys/MedSignPasskeys.cs',
+    file: 'Lab/MedSignPasskeys.cs',
     match: 'MedSign.Tests.ExerciseFive',
     summary:
       'Sign-in starts with a challenge and a list of the credentials this account registered. ' +
@@ -110,7 +110,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 6,
     title: 'Give out the challenge',
-    file: 'Passkeys/Endpoints/SignInEndpoints.cs',
+    file: 'Endpoints/SignInEndpoints.cs',
     match: 'MedSign.Tests.ExerciseSix',
     summary:
       'The same JSON conversion as exercise 2, and the same discipline as exercise 5: an ' +
@@ -127,7 +127,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 7,
     title: 'Check the signature',
-    file: 'Passkeys/MedSignPasskeys.cs',
+    file: 'Lab/MedSignPasskeys.cs',
     match: 'MedSign.Tests.ExerciseSeven',
     summary:
       'The assertion is signed by the private half MedSign has never seen. Verifying it takes ' +
@@ -145,7 +145,7 @@ window.MEDSIGN_EXERCISES = [
   {
     id: 8,
     title: 'Issue the session',
-    file: 'Passkeys/Endpoints/SignInEndpoints.cs',
+    file: 'Endpoints/SignInEndpoints.cs',
     match: 'MedSign.Tests.ExerciseEight',
     summary:
       'Last step, and the one that hands out a JWT. Two things have to hold: the new signature ' +

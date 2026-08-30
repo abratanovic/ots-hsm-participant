@@ -27,7 +27,7 @@
 
   <ItemGroup>
     <!-- ASP.NET Core's implicit usings pull in Microsoft.AspNetCore.Http.ISession,
-         which collides with the PKCS#11 one. Pin the name project-wide so no exercise
+         which collides with the PKCS#11 one. Pin the name project-wide so no Lab
          file has to carry a disambiguating using. -->
     <Using Include="Net.Pkcs11Interop.HighLevelAPI.ISession" Alias="ISession" />
     <Using Include="Net.Pkcs11Interop.HighLevelAPI.Factories" />

@@ -1,10 +1,12 @@
 using Fido2NetLib;
 using Fido2NetLib.Exceptions;
 using MedSign.Api.Auth;
+using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
-using static MedSign.Api.Passkeys.AuthResults;
+using MedSign.Api.Lab;
+using static MedSign.Api.Endpoints.AuthResults;
 
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Endpoints;
 
 public static class SignInEndpoints
 {
@@ -27,7 +29,7 @@ public static class SignInEndpoints
             // TODO 6/8: Start a fresh assertion ceremony, convert its binary
             // fields for JSON, and return the challenge without leaking whether
             // this username exists.
-            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/Endpoints/SignInEndpoints.cs#L13-L33
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/SignInEndpoints.cs#L15-L35
             throw new NotImplementedException(
                 "Exercise 6/8: implement the sign-in-challenge endpoint.");
         })
@@ -43,7 +45,7 @@ public static class SignInEndpoints
             // TODO 8/8: Normalize the username, verify the assertion, return one
             // generic 401 response for every refusal, persist the new signature
             // counter, and issue the JWT session only after successful verification.
-            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/Endpoints/SignInEndpoints.cs#L35-L68
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/SignInEndpoints.cs#L37-L70
             throw new NotImplementedException(
                 "Exercise 8/8: implement the sign-in endpoint.");
         })

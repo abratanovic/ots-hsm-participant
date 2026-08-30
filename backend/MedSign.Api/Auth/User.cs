@@ -1,4 +1,4 @@
-using MedSign.Api.Passkeys;
+using MedSign.Api.Auth.Passkey;
 
 namespace MedSign.Api.Auth;
 

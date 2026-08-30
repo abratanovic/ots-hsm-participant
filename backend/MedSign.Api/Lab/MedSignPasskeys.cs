@@ -2,14 +2,15 @@ using System.Security.Cryptography;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
 using MedSign.Api.Auth;
+using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
-// Fido2NetLib.AuthenticatorSelection and the wire record in Passkeys/Contracts share a
+// Fido2NetLib.AuthenticatorSelection and the wire record in Auth/Passkey share a
 // name. The alias is here so no exercise has to start by fixing an ambiguity.
 using Fido2AuthenticatorSelection = Fido2NetLib.AuthenticatorSelection;
 
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Lab;
 
 public sealed class MedSignPasskeys(IFido2 fido2, PasskeyChallengeStore challenges, MedSignDb db)
 {

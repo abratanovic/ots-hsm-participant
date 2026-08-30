@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Fido2NetLib;
 using Microsoft.Extensions.Options;
 
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Auth.Passkey;
 
 public sealed class PasskeyChallengeStore(IOptions<PasskeyOptions> options, TimeProvider clock)
 {

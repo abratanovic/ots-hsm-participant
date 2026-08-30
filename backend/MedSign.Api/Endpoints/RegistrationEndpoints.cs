@@ -1,11 +1,13 @@
 using Fido2NetLib;
 using Fido2NetLib.Exceptions;
 using MedSign.Api.Auth;
+using MedSign.Api.Auth.Passkey;
 using MedSign.Api.Data;
+using MedSign.Api.Lab;
 using Microsoft.EntityFrameworkCore;
-using static MedSign.Api.Passkeys.AuthResults;
+using static MedSign.Api.Endpoints.AuthResults;
 
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Endpoints;
 
 public static class RegistrationEndpoints
 {
@@ -23,7 +25,7 @@ public static class RegistrationEndpoints
 
             // TODO 2/8: Refuse an existing username, start the registration
             // ceremony, convert its binary fields for JSON, and return HTTP 200.
-            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/Endpoints/RegistrationEndpoints.cs#L14-L34
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/RegistrationEndpoints.cs#L16-L36
             throw new NotImplementedException(
                 "Exercise 2/8: implement the registration-challenge endpoint.");
         })
@@ -45,7 +47,7 @@ public static class RegistrationEndpoints
             // TODO 4/8: Normalize and de-duplicate the username, complete the
             // ceremony, map duplicate credential IDs to HTTP 409, validate the
             // verified key, persist the account and credential, then issue a session.
-            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Passkeys/Endpoints/RegistrationEndpoints.cs#L36-L81
+            // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Endpoints/RegistrationEndpoints.cs#L38-L83
             throw new NotImplementedException(
                 "Exercise 4/8: implement the registration endpoint.");
         })

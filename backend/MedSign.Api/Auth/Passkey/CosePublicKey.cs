@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using Fido2NetLib.Objects;
 using MedSign.Api.Hsm;
 
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Auth.Passkey;
 
 public static class CosePublicKey
 {

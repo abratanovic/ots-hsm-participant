@@ -1,10 +1,8 @@
 using Fido2NetLib;
 using Fido2NetLib.Objects;
-using static MedSign.Api.Passkeys.WebAuthnEnums;
+using static MedSign.Api.Auth.Passkey.WebAuthnEnums;
 
-using MedSign.Api.Auth;
-
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Auth.Passkey;
 
 public static class PasskeyWire
 {

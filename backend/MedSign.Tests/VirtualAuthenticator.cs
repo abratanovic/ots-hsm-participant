@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Fido2NetLib;
 using MedSign.Api.Auth;
-using MedSign.Api.Passkeys;
+using MedSign.Api.Auth.Passkey;
 
 namespace MedSign.Tests;
 

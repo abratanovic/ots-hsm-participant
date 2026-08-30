@@ -2,7 +2,8 @@ using System.Security.Cryptography;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
 using MedSign.Api.Auth;
-using MedSign.Api.Passkeys;
+using MedSign.Api.Auth.Passkey;
+using MedSign.Api.Lab;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Tests;

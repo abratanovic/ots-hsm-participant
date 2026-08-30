@@ -1,4 +1,4 @@
-namespace MedSign.Api.Passkeys;
+namespace MedSign.Api.Auth.Passkey;
 
 public sealed record RelyingParty(string Id, string Name);
 
