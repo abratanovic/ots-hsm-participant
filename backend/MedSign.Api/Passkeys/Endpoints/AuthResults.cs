@@ -1,6 +1,6 @@
 using MedSign.Api.Auth;
 
-namespace MedSign.Api.Endpoints;
+namespace MedSign.Api.Passkeys;
 
 internal static class AuthResults
 {

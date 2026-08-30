@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using MedSign.Api.Auth;
-using MedSign.Api.Auth.Passkey;
+using MedSign.Api.Passkeys;
 using MedSign.Api.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

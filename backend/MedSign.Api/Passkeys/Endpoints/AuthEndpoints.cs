@@ -1,4 +1,4 @@
-namespace MedSign.Api.Endpoints;
+namespace MedSign.Api.Passkeys;
 
 public static class AuthEndpoints
 {

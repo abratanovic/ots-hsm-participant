@@ -1,4 +1,4 @@
-namespace MedSign.Api.Auth.Passkey;
+namespace MedSign.Api.Passkeys;
 
 public sealed record PasskeyChallengeRequest(string Username);
 

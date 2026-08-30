@@ -1,6 +1,6 @@
 using Fido2NetLib.Objects;
 
-namespace MedSign.Api.Auth.Passkey;
+namespace MedSign.Api.Passkeys;
 
 public static class WebAuthnEnums
 {

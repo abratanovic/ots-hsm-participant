@@ -1,5 +1,5 @@
 using MedSign.Api.Auth;
-using MedSign.Api.Auth.Passkey;
+using MedSign.Api.Passkeys;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Api.Data;

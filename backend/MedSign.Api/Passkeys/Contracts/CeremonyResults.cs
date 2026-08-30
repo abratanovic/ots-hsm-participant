@@ -1,4 +1,6 @@
-namespace MedSign.Api.Auth.Passkey;
+using MedSign.Api.Auth;
+
+namespace MedSign.Api.Passkeys;
 
 public sealed record VerifiedCredential(byte[] CredentialId, byte[] PublicKeyPoint, uint SignCount);
 

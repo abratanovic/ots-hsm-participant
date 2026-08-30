@@ -1,4 +1,4 @@
-namespace MedSign.Api.Auth.Passkey;
+namespace MedSign.Api.Passkeys;
 
 public enum PasskeyCeremony
 {

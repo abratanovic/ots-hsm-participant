@@ -1,9 +1,8 @@
 using System.Security.Cryptography;
 using Fido2NetLib;
 using MedSign.Api.Auth;
-using MedSign.Api.Auth.Passkey;
+using MedSign.Api.Passkeys;
 using MedSign.Api.Data;
-using MedSign.Api.Lab;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
