@@ -34,6 +34,23 @@ else
     exec 2>&1
 fi
 
+# The PKCS#11 module does not talk to the YubiHSM directly. It talks to
+# yubihsm-connector over HTTP, and it looks for that address in a configuration
+# file named by YUBIHSM_PKCS11_CONF -- which HsmCommunicator sets from
+# Hsm:ConfPath. With no such file the module refuses to start up at all, and
+# says so as CKR_ARGUMENTS_BAD from C_Initialize, which names nothing that is
+# actually missing.
+#
+# The connector runs on the participant's own machine rather than in here,
+# because it needs the USB device and Docker Desktop passes no USB through on
+# macOS or Windows. So the address to write down is the host's, as seen from
+# inside this container. Written at startup rather than baked into the image so
+# that pointing at a connector somewhere else costs an environment variable
+# instead of a rebuild.
+HSM_CONF="${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}"
+printf 'connector = %s\n' "${HSM_CONNECTOR_URL:-http://host.docker.internal:12345}" > "$HSM_CONF"
+echo "YubiHSM connector: $(cat "$HSM_CONF")"
+
 # Restore once, up front. The test gate builds MedSign.Tests through an MSBuild
 # task, which does not restore, and dotnet watch only knows about MedSign.Api
 # and the projects it references.

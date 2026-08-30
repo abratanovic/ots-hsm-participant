@@ -1,6 +1,12 @@
 services:
   backend:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    # The .NET SDK plus a PKCS#11 module for the YubiHSM, built for the
+    # architecture of the machine this is running on. See docker/backend/Dockerfile.
+    # The published image is multi-architecture, so `up` normally just pulls; the
+    # build stanza is the fallback if it cannot be reached.
+    image: ${BACKEND_IMAGE:-abratanov/medsign-backend:latest}
+    build:
+      context: ./docker/backend
     container_name: medsign-backend
     working_dir: /src
     command: bash /src/run-backend.sh
@@ -23,7 +29,25 @@ services:
 
       # ---- HSM / PKCS#11 -------------------------------------------------
       Hsm__ModulePath: ${HSM_MODULE_PATH:-/usr/lib/pkcs11/yubihsm_pkcs11.so}
-      Hsm__ConfPath: ""
+
+      # Where run-backend.sh writes the connector address, and where the PKCS#11
+      # module is told to read it. The two have to agree, so they share a
+      # variable. Set HSM_CONNECTOR_URL in .env to reach a connector that is not
+      # on this machine at the default port.
+      Hsm__ConfPath: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
+      HSM_CONF_PATH: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
+      HSM_CONNECTOR_URL: ${HSM_CONNECTOR_URL:-http://host.docker.internal:12345}
+
+      # The module reads this with getenv(), so it has to be in the real process
+      # environment -- which is here, and only here. HsmCommunicator also sets it
+      # from Hsm:ConfPath, but Environment.SetEnvironmentVariable on .NET for
+      # Linux writes to a managed copy that no native library can see. That call
+      # does reach native code on Windows, which is where this application was
+      # first run, so the omission stayed invisible until it ran in a container:
+      # the module simply found no configuration and refused to start, as
+      # CKR_ARGUMENTS_BAD out of C_Initialize.
+      YUBIHSM_PKCS11_CONF: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
+
       Hsm__KeyLabel: medsign-jwt-signing
       MEDSIGN_HSM_PIN: ${MEDSIGN_HSM_PIN:-}
 
@@ -60,6 +84,10 @@ services:
       - nuget:/root/.nuget/packages
     ports:
       - "${BACKEND_PORT:-5050}:${BACKEND_PORT:-5050}"
+    # Docker Desktop resolves host.docker.internal on its own; a Linux host does
+    # not, and the connector is only ever reachable there. Harmless on Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     tty: true
     stdin_open: true
 

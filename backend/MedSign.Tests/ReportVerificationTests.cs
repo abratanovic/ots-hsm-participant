@@ -187,9 +187,26 @@ public class ReportVerificationTests
         {
             // The report still names the key it was signed with; the row that
             // held the public half is what has gone.
-            db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF");
+            //
+            // The connection is opened by hand for both statements. PRAGMA
+            // foreign_keys is a property of one connection, and EF otherwise
+            // opens and closes one per command -- so under the parallelism of a
+            // full suite run the DELETE could be handed a connection the PRAGMA
+            // had never reached, and fail on the foreign key this is switching
+            // off. Holding the connection open makes the two statements
+            // provably the same conversation.
+            db.Database.OpenConnection();
 
-            return db.SigningKeys.ExecuteDelete();
+            try
+            {
+                db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF");
+
+                return db.SigningKeys.ExecuteDelete();
+            }
+            finally
+            {
+                db.Database.CloseConnection();
+            }
         });
 
         // Not "invalid". Nothing about the document has changed -- MedSign
