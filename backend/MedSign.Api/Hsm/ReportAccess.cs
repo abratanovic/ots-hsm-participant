@@ -32,31 +32,20 @@ public sealed class ReportAccess(MedSignDb db, ReportStorage storage)
     /// </summary>
     public Task<List<MedicalReport>> ListAsync(
         SessionPrincipal caller, CancellationToken cancellationToken) =>
-        Signed(caller)
+        Visible(caller)
             .OrderByDescending(report => report.Id)
             .ToListAsync(cancellationToken);
 
     /// <summary>
     /// One of the caller's reports, or a 404 -- for a report that does not
     /// exist and for one that is somebody else's alike.
+    ///
+    /// Verification asks with this same lookup, and relies on the key being
+    /// left unattached: it looks the key up separately, so a report whose key
+    /// row has gone missing is still found and answered as an unknown signer,
+    /// rather than vanishing behind "no such report".
     /// </summary>
     public async Task<MedicalReport> FindAsync(
-        SessionPrincipal caller, Guid id, CancellationToken cancellationToken) =>
-        await Signed(caller).SingleOrDefaultAsync(report => report.PublicId == id, cancellationToken)
-        ?? throw NoSuchReport(id);
-
-    /// <summary>
-    /// The same report and the same refusal, with the key that signed it left
-    /// unattached -- the lookup verification asks with.
-    ///
-    /// The omission is the point. A report's key is a required relationship, so
-    /// including it joins on it, and a report whose key row has gone missing
-    /// would not be found at all: MedSign would answer "no such report" about a
-    /// report that plainly exists, and about the one situation verification is
-    /// specifically supposed to name. Verification looks the key up separately
-    /// and calls a missing one an unknown signer.
-    /// </summary>
-    public async Task<MedicalReport> FindForVerificationAsync(
         SessionPrincipal caller, Guid id, CancellationToken cancellationToken) =>
         await Visible(caller).SingleOrDefaultAsync(report => report.PublicId == id, cancellationToken)
         ?? throw NoSuchReport(id);
@@ -88,19 +77,20 @@ public sealed class ReportAccess(MedSignDb db, ReportStorage storage)
         return new ReportFile(report.FileName, pdf);
     }
 
-    /// <summary>The caller's reports, with both parties named on each.</summary>
+    /// <summary>
+    /// The caller's reports, with both parties named on each.
+    ///
+    /// The signing key is deliberately not attached. Nothing a report says on
+    /// the wire names it, and a report's key is a required relationship, so
+    /// including it would join on it: a report whose key row had gone missing
+    /// would stop being found at all, and MedSign would answer "no such report"
+    /// about a report that plainly exists.
+    /// </summary>
     private IQueryable<MedicalReport> Visible(SessionPrincipal caller) => db.MedicalReports
         .AsNoTracking()
         .Include(report => report.Doctor)
         .Include(report => report.Patient)
         .Where(PartyTo(caller));
-
-    /// <summary>
-    /// The same, with the signing key attached -- what a report on the wire
-    /// needs, since every one of them names the key it was signed with.
-    /// </summary>
-    private IQueryable<MedicalReport> Signed(SessionPrincipal caller) =>
-        Visible(caller).Include(report => report.SigningKey);
 
     /// <summary>
     /// What being party to a report means, by role -- the one place the two

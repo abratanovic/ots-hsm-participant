@@ -184,7 +184,7 @@ public sealed record DocumentView(string FileName, long SizeBytes, string Sha256
 /// so it will not show as signed in a PDF reader. The bytes live here instead,
 /// and MedSign is what checks them.
 /// </summary>
-public sealed record SignatureView(string Algorithm, string KeyId, string Value)
+public sealed record SignatureView(string Algorithm, string Value)
 {
     /// <summary>
     /// ECDSA on P-256 over a SHA-256 digest -- the same curve and the same name
@@ -193,9 +193,11 @@ public sealed record SignatureView(string Algorithm, string KeyId, string Value)
     public const string Es256 = "ES256";
 
     /// <summary>
-    /// The key is named by its label, which is the handle that lasts: a PKCS#11
-    /// object handle does not survive the device's session being reset.
+    /// The key is not named. Its label is how MedSign addresses an object on
+    /// the device, which is MedSign's business and no part of what a report
+    /// says; the report names the doctor, and /verify is what answers whether
+    /// the bytes below check out against their key.
     /// </summary>
     public static SignatureView Of(MedicalReport report) => new(
-        Es256, report.SigningKey.KeyLabel, Base64Url.Encode(report.Signature));
+        Es256, Base64Url.Encode(report.Signature));
 }

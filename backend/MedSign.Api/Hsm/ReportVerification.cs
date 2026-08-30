@@ -29,7 +29,7 @@ public sealed class ReportVerification(
         // The same party check the other single-report routes apply, so a
         // stranger gets the same 404 here as everywhere else and cannot learn
         // from a verification that a report exists.
-        var report = await reports.FindForVerificationAsync(caller, id, cancellationToken);
+        var report = await reports.FindAsync(caller, id, cancellationToken);
 
         // Looked up by id rather than read off the report's navigation: a key
         // row that has gone missing is an outcome this method reports, not a
@@ -43,8 +43,7 @@ public sealed class ReportVerification(
             Check(report, key),
             clock.GetUtcNow(),
             SignatureView.Es256,
-            PartyView.Of(report.Doctor),
-            key?.KeyLabel);
+            PartyView.Of(report.Doctor));
     }
 
     /// <summary>
@@ -122,21 +121,19 @@ public static class VerificationOutcomes
 /// <summary>
 /// The answer, and who it is about.
 ///
-/// It names the doctor and the key rather than returning a bare verdict,
-/// because "valid" alone is a claim about nothing in particular: what a patient
-/// wants to know is that <em>this named doctor</em> signed it, with a key
-/// MedSign holds for them.
+/// It names the doctor rather than returning a bare verdict, because "valid"
+/// alone is a claim about nothing in particular: what a patient wants to know
+/// is that <em>this named doctor</em> signed it, with a key MedSign holds for
+/// them. Which key that is stays inside MedSign -- the answer is about a
+/// person, and the label the device knows the key by tells a reader nothing
+/// they can act on.
 ///
 /// <see cref="CheckedAt"/> is on every answer for the same reason nothing is
 /// cached -- it is true of the file at that moment and says so.
-/// <see cref="KeyLabel"/> is null exactly when the outcome is
-/// <see cref="VerificationOutcomes.UnknownSigner"/>, and the application's JSON
-/// options drop it rather than sending an empty string.
 /// </summary>
 public sealed record VerificationView(
     Guid ReportId,
     string Outcome,
     DateTimeOffset CheckedAt,
     string Algorithm,
-    PartyView Doctor,
-    string? KeyLabel);
+    PartyView Doctor);

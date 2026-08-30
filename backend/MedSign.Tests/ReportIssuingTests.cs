@@ -86,8 +86,13 @@ public class ReportIssuingTests
         var signature = answer.Field("signature")!.Value;
 
         Assert.Equal("ES256", signature.GetProperty("algorithm").GetString());
-        Assert.Equal(DoctorKeyLabel.For(clinic.Doctor.Id), signature.GetProperty("keyId").GetString());
         Assert.False(string.IsNullOrWhiteSpace(signature.GetProperty("value").GetString()));
+
+        // The key is not named. Its label is how MedSign addresses an object on
+        // the device, and a report that carried it would hand every reader the
+        // name the device answers to for no purpose the reader has.
+        Assert.False(signature.TryGetProperty("keyId", out _));
+        Assert.DoesNotContain(DoctorKeyLabel.For(clinic.Doctor.Id), answer.Raw);
     }
 
     [Fact]

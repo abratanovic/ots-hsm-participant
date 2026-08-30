@@ -41,7 +41,6 @@ public class SigningEnrolmentTests
 
         // Nothing to describe yet, and the frontend reads a missing field as
         // "not set up" rather than rendering a placeholder.
-        Assert.Null(answer.Field("keyLabel"));
         Assert.Null(answer.Field("publicKeyFingerprint"));
     }
 
@@ -56,7 +55,6 @@ public class SigningEnrolmentTests
 
         Assert.Equal(HttpStatusCode.OK, enabled.Status);
         Assert.True(enabled.Field("enabled")?.GetBoolean());
-        Assert.False(string.IsNullOrWhiteSpace(enabled.Text("keyLabel")));
         Assert.False(string.IsNullOrWhiteSpace(enabled.Text("publicKeyFingerprint")));
         Assert.NotNull(enabled.Field("createdAt"));
 
@@ -64,7 +62,6 @@ public class SigningEnrolmentTests
         // account, not a receipt for the request that created it.
         var status = await client.AskAsync(Api.SigningStatus, token);
 
-        Assert.Equal(enabled.Text("keyLabel"), status.Text("keyLabel"));
         Assert.Equal(enabled.Text("publicKeyFingerprint"), status.Text("publicKeyFingerprint"));
     }
 
@@ -98,7 +95,6 @@ public class SigningEnrolmentTests
         var second = await client.PostAsync(Api.SigningEnable, token: token);
 
         Assert.Equal(HttpStatusCode.OK, second.Status);
-        Assert.Equal(first.Text("keyLabel"), second.Text("keyLabel"));
         Assert.Equal(first.Text("publicKeyFingerprint"), second.Text("publicKeyFingerprint"));
 
         // A second key would not be an error anywhere the user can see, and
@@ -134,7 +130,6 @@ public class SigningEnrolmentTests
 
         // The same key, not a new one -- so reports signed before the reset
         // still verify.
-        Assert.Equal(first.Text("keyLabel"), again.Text("keyLabel"));
         Assert.Equal(first.Text("publicKeyFingerprint"), again.Text("publicKeyFingerprint"));
     }
 
@@ -150,15 +145,38 @@ public class SigningEnrolmentTests
         var theirs = await owned.CreateClient()
             .PostAsync(Api.SigningEnable, token: owned.TokenFor(colleague));
 
-        // Both live in the same token as the application's JWT key, and the
-        // communicator looks keys up by label alone.
-        Assert.NotEqual(mine.Text("keyLabel"), theirs.Text("keyLabel"));
         Assert.NotEqual(mine.Text("publicKeyFingerprint"), theirs.Text("publicKeyFingerprint"));
 
+        // Both live in the same token as the application's JWT key, and the
+        // communicator looks keys up by label alone. The labels are MedSign's
+        // own business -- no response names one -- so they are read from the
+        // rows that hold them.
+        var labels = owned.Read(db => db.SigningKeys.Select(key => key.KeyLabel).ToList());
         var jwtLabel = owned.Read(db => db.JwtSigningKeys.Single().Label);
 
-        Assert.NotEqual(jwtLabel, mine.Text("keyLabel"));
-        Assert.NotEqual(jwtLabel, theirs.Text("keyLabel"));
+        Assert.Equal(2, labels.Distinct().Count());
+        Assert.DoesNotContain(jwtLabel, labels);
+    }
+
+    [Fact]
+    public async Task Never_tells_the_caller_the_label_the_device_knows_the_key_by()
+    {
+        var (host, token) = Doctor();
+        using var owned = host;
+        var client = owned.CreateClient();
+
+        var enabled = await client.PostAsync(Api.SigningEnable, token: token);
+        var status = await client.AskAsync(Api.SigningStatus, token);
+
+        // The label is how MedSign addresses an object on the device. A caller
+        // has no use for it, and the fingerprint already identifies the key, so
+        // the label never leaves the server -- under this name or any other.
+        var label = owned.Read(db => db.SigningKeys.Single().KeyLabel);
+
+        Assert.Null(enabled.Field("keyLabel"));
+        Assert.Null(status.Field("keyLabel"));
+        Assert.DoesNotContain(label, enabled.Raw);
+        Assert.DoesNotContain(label, status.Raw);
     }
 
     [Fact]

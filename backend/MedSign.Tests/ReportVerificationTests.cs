@@ -84,7 +84,7 @@ public class ReportVerificationTests
     }
 
     [Fact]
-    public async Task Says_valid_for_an_untouched_file_and_names_the_doctor_the_key_and_the_algorithm()
+    public async Task Says_valid_for_an_untouched_file_and_names_the_doctor_and_the_algorithm()
     {
         var subject = await CaseAsync();
         using var owned = subject.Host;
@@ -98,8 +98,11 @@ public class ReportVerificationTests
         // checked out against something; this says whose key it was.
         Assert.Equal("Dr. Helena Novak", answer.Field("doctor")?.GetProperty("name").GetString());
         Assert.Equal("h.novak", answer.Field("doctor")?.GetProperty("username").GetString());
-        Assert.Equal(DoctorKeyLabel.For(subject.Doctor.Id), answer.Text("keyLabel"));
         Assert.Equal(SignatureView.Es256, answer.Text("algorithm"));
+
+        // Which key, though, stays inside MedSign: the answer is about a person
+        // and a file, and the label the device knows the key by is neither.
+        Assert.DoesNotContain(DoctorKeyLabel.For(subject.Doctor.Id), answer.Raw);
 
         // When the check happened, because the answer is only about that moment.
         Assert.True(answer.Field("checkedAt")?.TryGetDateTimeOffset(out _) ?? false,
@@ -220,7 +223,6 @@ public class ReportVerificationTests
         // The report is still a report and the doctor is still named; it is
         // only the key that cannot be found.
         Assert.Equal("Dr. Helena Novak", answer.Field("doctor")?.GetProperty("name").GetString());
-        Assert.Null(answer.Text("keyLabel"));
     }
 
     [Fact]

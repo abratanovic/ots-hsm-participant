@@ -24,6 +24,11 @@ public static class SigningEndpoints
 /// <summary>
 /// Whether this doctor can sign documents, and what with.
 ///
+/// The key is named by its fingerprint and never by its PKCS#11 label. The
+/// label is how MedSign addresses an object on the device; a caller has no use
+/// for it, and the fingerprint is derived from the public key, so it identifies
+/// the same key without handing out the name the device answers to.
+///
 /// Everything but <see cref="Enabled"/> is null when they cannot, and the
 /// application's JSON options drop nulls, so the answer is a bare
 /// { "enabled": false } rather than a shape full of empty strings the frontend
@@ -31,7 +36,6 @@ public static class SigningEndpoints
 /// </summary>
 public sealed record SigningStatus(
     bool Enabled,
-    string? KeyLabel = null,
     string? PublicKeyFingerprint = null,
     DateTimeOffset? CreatedAt = null)
 {
@@ -39,7 +43,6 @@ public sealed record SigningStatus(
         ? new SigningStatus(false)
         : new SigningStatus(
             true,
-            key.KeyLabel,
             SigningKey.Fingerprint(key.PublicKeyPoint),
             key.CreatedAt);
 }
