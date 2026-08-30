@@ -21,93 +21,115 @@ public sealed class HsmCommunicator : IDisposable
         _options = options.Value;
         _log = log;
 
+        // The YubiHSM PKCS#11 module reads its connector address out of a file
+        // named by this variable, not out of anything you pass to it in code.
         if (_options.ConfPath is { Length: > 0 } conf)
         {
             Environment.SetEnvironmentVariable("YUBIHSM_PKCS11_CONF", conf);
         }
     }
 
-    public byte[] CreateKey(string label) => Execute(session =>
+    public byte[] CreateKey(string label)
     {
-        List<IObjectAttribute> publicTemplate =
-        [
-            Attribute(CKA.CKA_CLASS, CKO.CKO_PUBLIC_KEY),
-            Attribute(CKA.CKA_KEY_TYPE, CKK.CKK_EC),
-            Attribute(CKA.CKA_LABEL, label),
-            Attribute(CKA.CKA_TOKEN, true),
-            Attribute(CKA.CKA_VERIFY, true),
-            Attribute(CKA.CKA_EC_PARAMS, Pkcs11Constants.Secp256r1),
-        ];
+        // TODO HSM 5/10: Generate a P-256 (secp256r1) key pair on the device and
+        // return the public point.
+        //
+        // Run the work through Execute(session => ...) so you are handed a live
+        // session. Build two attribute templates with the Attribute() helper
+        // below -- one for the public key, one for the private key:
+        //
+        //   both     CKA_CLASS (CKO_PUBLIC_KEY / CKO_PRIVATE_KEY),
+        //            CKA_KEY_TYPE = CKK_EC, CKA_LABEL = label, CKA_TOKEN = true
+        //            (CKA_TOKEN false would give you a key that dies with the
+        //            session)
+        //   public   CKA_VERIFY = true, CKA_EC_PARAMS = Pkcs11Constants.Secp256r1
+        //            (the DER OID of the curve -- this is how you pick P-256)
+        //   private  CKA_PRIVATE = true, CKA_SIGN = true, CKA_SENSITIVE = true,
+        //            CKA_EXTRACTABLE = false -- the two flags that make the
+        //            private half unreadable, forever, even by you
+        //
+        // Then session.GenerateKeyPair() with a CKM_EC_KEY_PAIR_GEN mechanism
+        // from _factories.MechanismFactory, and hand the public key handle it
+        // gives you to ReadPoint(). Log what you generated; a key appearing on
+        // the device unannounced is hard to explain later.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L30-L64
+        throw new NotImplementedException(
+            "Exercise HSM 5/10: generate the key pair in HsmCommunicator.CreateKey.");
+    }
 
-        List<IObjectAttribute> privateTemplate =
-        [
-            Attribute(CKA.CKA_CLASS, CKO.CKO_PRIVATE_KEY),
-            Attribute(CKA.CKA_KEY_TYPE, CKK.CKK_EC),
-            Attribute(CKA.CKA_LABEL, label),
-            Attribute(CKA.CKA_TOKEN, true),
-            Attribute(CKA.CKA_PRIVATE, true),
-            Attribute(CKA.CKA_SIGN, true),
-            Attribute(CKA.CKA_SENSITIVE, true),
-            Attribute(CKA.CKA_EXTRACTABLE, false),
-        ];
-
-        session.GenerateKeyPair(
-            _factories.MechanismFactory.Create(CKM.CKM_EC_KEY_PAIR_GEN),
-            publicTemplate,
-            privateTemplate,
-            out var publicKey,
-            out _);
-
-        _log.LogInformation("Generated a P-256 key pair on the HSM under label {Label}.", label);
-
-        return ReadPoint(session, publicKey);
-    });
-
-    public byte[]? GetKey(string label) => Execute(session =>
+    public byte[]? GetKey(string label)
     {
-        var publicKey = FindOne(session, label, CKO.CKO_PUBLIC_KEY);
+        // TODO HSM 4/10: Return the public point of the public key stored under
+        // this label, or null when the device is not holding one.
+        //
+        // Run it through Execute(), find the CKO_PUBLIC_KEY with FindOne(), and
+        // read it with ReadPoint(). The null matters: HsmJwtSigningProvider does
+        // GetKey(label) ?? CreateKey(label), so a null that should have been a
+        // handle silently provisions a second key -- and every token signed by
+        // the first one stops verifying.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L66-L71
+        throw new NotImplementedException(
+            "Exercise HSM 4/10: look the public key up in HsmCommunicator.GetKey.");
+    }
 
-        return publicKey is null ? null : ReadPoint(session, publicKey);
-    });
-
-    public byte[] SignDigest(string label, byte[] digest) => Execute(session =>
+    public byte[] SignDigest(string label, byte[] digest)
     {
-        var privateKey = FindOne(session, label, CKO.CKO_PRIVATE_KEY)
-            ?? throw new HsmUnavailableException(
-                $"The HSM is not holding a private key labelled {label}. Something recorded that key as "
-                + "provisioned, so it was there once. Restarting the backend will provision a new one -- "
-                + "and every token signed by the old key stops verifying the moment it does.");
-
-        return session.Sign(_factories.MechanismFactory.Create(CKM.CKM_ECDSA), privateKey, digest);
-    });
+        // TODO HSM 6/10: Sign an already-hashed 32-byte digest with the private
+        // key stored under this label.
+        //
+        // Run it through Execute(), find the CKO_PRIVATE_KEY with FindOne(), and
+        // call session.Sign() with a CKM_ECDSA mechanism from
+        // _factories.MechanismFactory. Note what CKM_ECDSA means: the device
+        // signs the digest exactly as given and does not hash it for you, and
+        // what comes back is the raw r||s pair (64 bytes), not a DER SEQUENCE --
+        // which is precisely the shape JWS and MedSign's verifier want.
+        //
+        // A missing private key is not a null case here. Something already
+        // recorded this key as provisioned, so throw HsmUnavailableException and
+        // say so; restarting will provision a new key and invalidate every token
+        // the old one signed.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L73-L82
+        throw new NotImplementedException(
+            "Exercise HSM 6/10: sign the digest in HsmCommunicator.SignDigest.");
+    }
 
     private IObjectHandle? FindOne(ISession session, string label, CKO objectClass)
     {
-        var found = session.FindAllObjects(
-        [
-            Attribute(CKA.CKA_CLASS, objectClass),
-            Attribute(CKA.CKA_LABEL, label),
-        ]);
-
-        if (found.Count > 1)
-        {
-            throw new HsmUnavailableException(
-                $"The HSM holds {found.Count} objects of class {objectClass} labelled {label}. MedSign "
-                + "looks its key up by label, so a label has to identify exactly one object. Delete the "
-                + "duplicates with yubihsm-shell and restart.");
-        }
-
-        return found.Count == 1 ? found[0] : null;
+        // TODO HSM 2/10: Return the one object of this class carrying this label,
+        // or null when there is none.
+        //
+        // PKCS#11 has no lookup-by-name. You search by attribute template:
+        // session.FindAllObjects() with CKA_CLASS and CKA_LABEL, built with the
+        // Attribute() helper below, and you get back a list of handles. A handle
+        // is a session-scoped integer, not the key.
+        //
+        // Handle all three counts. Zero is null -- that is how GetKey answers
+        // "not provisioned yet". One is your answer. More than one is not
+        // recoverable by guessing: MedSign addresses its key by label, so throw
+        // HsmUnavailableException and tell the reader to delete the duplicates
+        // with yubihsm-shell.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L84-L101
+        throw new NotImplementedException(
+            "Exercise HSM 2/10: search the device by template in HsmCommunicator.FindOne.");
     }
 
     private static byte[] ReadPoint(ISession session, IObjectHandle publicKey)
     {
-        var attribute = session.GetAttributeValue(publicKey, [CKA.CKA_EC_POINT]).Single();
-        var point = EcPoint.Unwrap(attribute.GetValueAsByteArray());
-
-        EcPoint.EnsureUncompressedP256(point);
-
-        return point;
+        // TODO HSM 3/10: Read CKA_EC_POINT off this public key handle and return
+        // it as a 65-byte uncompressed P-256 point (0x04 || X || Y).
+        //
+        // session.GetAttributeValue(handle, [CKA.CKA_EC_POINT]) gives you a list
+        // of attributes; take the single one and call GetValueAsByteArray().
+        //
+        // What you get is not yet the point. PKCS#11 specifies CKA_EC_POINT as a
+        // DER OCTET STRING wrapping the point, and modules disagree about
+        // whether they hand you the wrapper -- EcPoint.Unwrap() in Shared/ copes
+        // with both, so run the bytes through it. Then call
+        // EcPoint.EnsureUncompressedP256() so a wrong shape fails here, at the
+        // device boundary, instead of much later as an unverifiable signature.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L103-L111
+        throw new NotImplementedException(
+            "Exercise HSM 3/10: read the public point in HsmCommunicator.ReadPoint.");
     }
 
     private IObjectAttribute Attribute(CKA type, object value) => value switch
@@ -141,55 +163,36 @@ public sealed class HsmCommunicator : IDisposable
 
     private ISession Connect()
     {
-        if (_session is not null)
-        {
-            return _session;
-        }
-
-        if (_options.ModulePath is not { Length: > 0 })
-        {
-            throw new HsmUnavailableException("Hsm:ModulePath is not configured.");
-        }
-
-        if (!File.Exists(_options.ModulePath))
-        {
-            throw new HsmUnavailableException($"PKCS#11 module not found at {_options.ModulePath}.");
-        }
-
-        var pin = _options.ResolvePin();
-        if (pin is not { Length: > 0 })
-        {
-            throw new HsmUnavailableException(
-                "No PIN. Set MEDSIGN_HSM_PIN to your Authentication Key id as 4 lowercase hex digits "
-                + "followed by your password, e.g. 1001<password>. There is no factory key to fall back on.");
-        }
-
-        _library ??= _factories.Pkcs11LibraryFactory.LoadPkcs11Library(
-            _factories, _options.ModulePath, AppType.MultiThreaded);
-
-        var slot = _library.GetSlotList(SlotsType.WithTokenPresent).FirstOrDefault()
-            ?? throw new HsmUnavailableException(
-                "No slot with a token present. Is the Connector running and reachable at the address "
-                + "in yubihsm_pkcs11.conf?");
-
-        var session = slot.OpenSession(SessionType.ReadWrite);
-
-        try
-        {
-            session.Login(CKU.CKU_USER, pin);
-        }
-        catch (Pkcs11Exception ex)
-        {
-            session.Dispose();
-            throw new HsmUnavailableException(LoginAdvice(ex), ex);
-        }
-
-        var token = slot.GetTokenInfo();
-        _log.LogInformation("HSM session open on {Token} (serial {Serial}).",
-            token.Label.Trim(), token.SerialNumber.Trim());
-
-        _session = session;
-        return session;
+        // TODO HSM 1/10: Return a logged-in session, opening one if this instance
+        // is not already holding it. Start here -- nothing else in this class
+        // runs until it works.
+        //
+        // In order:
+        //
+        //   1. Return the cached _session when there is one. Every call opening
+        //      its own session burns through the device's 16 in seconds.
+        //   2. Refuse to continue without an _options.ModulePath that exists on
+        //      disk, and without a PIN from _options.ResolvePin(). Throw
+        //      HsmUnavailableException saying which is missing -- the PIN is
+        //      your Authentication Key id as 4 lowercase hex digits followed by
+        //      the password, e.g. 1001<password>, and there is no default.
+        //   3. _factories.Pkcs11LibraryFactory.LoadPkcs11Library(_factories,
+        //      path, AppType.MultiThreaded), assigned with ??= -- the native
+        //      library is loaded once per process, not once per session.
+        //   4. _library.GetSlotList(SlotsType.WithTokenPresent) and take the
+        //      first. An empty list means the Connector is not running or is not
+        //      at the address in yubihsm_pkcs11.conf; say that.
+        //   5. slot.OpenSession(SessionType.ReadWrite) -- a read-only session
+        //      cannot generate keys.
+        //   6. session.Login(CKU.CKU_USER, pin). Dispose the session and rethrow
+        //      as HsmUnavailableException(LoginAdvice(ex), ex) when it fails; a
+        //      session left open on a failed login is a session you cannot get
+        //      back.
+        //   7. Log slot.GetTokenInfo() label and serial, cache the session in
+        //      _session, return it.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L142-L193
+        throw new NotImplementedException(
+            "Exercise HSM 1/10: open and log in to the session in HsmCommunicator.Connect.");
     }
 
     private void Reset()
@@ -225,17 +228,17 @@ public sealed class HsmCommunicator : IDisposable
 
     public void Dispose()
     {
-        lock (_gate)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            Reset();
-            _library?.Dispose();
-            _library = null;
-            _disposed = true;
-        }
+        // TODO HSM 7/10: Give the device back what this instance is holding.
+        //
+        // Under _gate, and only once: return early if _disposed is already set,
+        // Reset() the session, dispose and null _library, then set _disposed --
+        // which is what makes Execute's ObjectDisposedException guard fire
+        // instead of a native crash.
+        //
+        // Leaving this empty is survivable, which is why it does not throw: the
+        // device reclaims idle sessions after about 30 seconds. Leaving it empty
+        // while restarting the backend repeatedly is not -- you will meet
+        // CKR_SESSION_COUNT and the 16-session limit above.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L226-L240
     }
 }
