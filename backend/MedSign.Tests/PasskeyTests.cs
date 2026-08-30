@@ -7,13 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// A challenge is single-use and short-lived. Both properties are what stop a
-/// captured ceremony from being replayed, so they are worth pinning down.
-/// </summary>
 public class PasskeyChallengeStoreTests
 {
-    /// <summary>A ceremony with every required member filled in; the values do not matter here.</summary>
     private static CredentialCreateOptions Ceremony() => new()
     {
         Rp = new PublicKeyCredentialRpEntity("localhost", "MedSign Cloud", null),
@@ -92,8 +87,6 @@ public class PasskeyChallengeStoreTests
         var store = Store(new TestClock());
         store.Issue("h.novak", Ceremony());
 
-        // A second attempt from the same tab replaces the first: one account has
-        // one outstanding ceremony, so an abandoned one cannot be spent later.
         var second = Ceremony();
         store.Issue("h.novak", second);
 
@@ -147,8 +140,6 @@ public class PasskeyChallengeStoreTests
         var store = Store(new TestClock());
         store.Issue("h.novak", Ceremony());
 
-        // Single-use has to hold when the same answer is posted twice at once,
-        // which is what a replay looks like from the outside.
         var winners = await Task.WhenAll(Enumerable.Range(0, 32).Select(_ =>
             Task.Run(() => store.ConsumeRegistration("h.novak"))));
 
@@ -156,13 +147,6 @@ public class PasskeyChallengeStoreTests
     }
 }
 
-/// <summary>
-/// Exercise 1 -- MedSignPasskeys.BeginRegistration.
-///
-/// These skip while the method still throws NotImplementedException, so an
-/// exercise you have not started never stops the backend. Once you write the
-/// implementation they run for real.
-/// </summary>
 public class ExerciseOneBeginRegistrationTests
 {
     [Fact]
@@ -221,8 +205,6 @@ public class ExerciseOneBeginRegistrationTests
         Exercise.OrSkip(() => lab.Passkeys.BeginRegistration("h.novak", "Dr. Helena Novak"));
         var second = lab.Passkeys.BeginRegistration("h.novak", "Dr. Helena Novak");
 
-        // The browser is answering the challenge it was handed last. Holding the
-        // earlier one turns a reload of the page into a sign-up that can never finish.
         var held = lab.Challenges.ConsumeRegistration("h.novak");
 
         Assert.NotNull(held);
@@ -237,8 +219,6 @@ public class ExerciseOneBeginRegistrationTests
 
         var options = Exercise.OrSkip(() => lab.Passkeys.BeginRegistration("h.novak", "Dr. Helena Novak"));
 
-        // This is the line the endpoint runs on the way out. A member the ceremony
-        // left unset is a 500 on /registration-challenge, not a bad passkey later.
         var wire = PasskeyWire.ToWire(options);
 
         Assert.Equal(Base64Url.Encode(options.Challenge), wire.Challenge);
@@ -251,13 +231,6 @@ public class ExerciseOneBeginRegistrationTests
     }
 }
 
-/// <summary>
-/// Exercise 3 -- MedSignPasskeys.CompleteRegistrationAsync.
-///
-/// A real authenticator answers here: VirtualAuthenticator builds the same
-/// attestation object a browser would post back, so Fido2NetLib verifies it for
-/// real and a wrong answer is refused for the right reason.
-/// </summary>
 public class ExerciseThreeCompleteRegistrationTests
 {
     private const string Username = "h.novak";
@@ -289,8 +262,6 @@ public class ExerciseThreeCompleteRegistrationTests
         var registered = await Exercise.OrSkipAsync(
             () => lab.Passkeys.CompleteRegistrationAsync(Username, key.Register(ceremony)));
 
-        // The same check the endpoint runs before it opens an account, so a failure
-        // here reads exactly like the error a participant would hit there.
         Assert.Null(PasskeyDiagnostics.DiagnoseRegistration(registered.Credential));
     }
 
@@ -305,8 +276,6 @@ public class ExerciseThreeCompleteRegistrationTests
         var registered = await Exercise.OrSkipAsync(
             () => lab.Passkeys.CompleteRegistrationAsync(Username, key.Register(ceremony)));
 
-        // The account is keyed by this afterwards, so it has to be the handle
-        // MedSign chose and not anything that came back off the wire.
         Assert.Equal(ceremony.User.Id, registered.UserHandle);
     }
 
@@ -334,7 +303,6 @@ public class ExerciseThreeCompleteRegistrationTests
         var ceremony = Exercise.OrSkip(() => lab.Passkeys.BeginRegistration(Username, FullName));
         var answer = key.Register(ceremony);
 
-        // The ceremony was issued to h.novak; nobody else may spend it.
         Assert.True(await Exercise.RefusedOrSkipAsync<RegisteredPasskey>(
             async () => await lab.Passkeys.CompleteRegistrationAsync("someone.else", answer)));
     }
@@ -362,8 +330,6 @@ public class ExerciseThreeCompleteRegistrationTests
         var registered = await Exercise.OrSkipAsync(
             () => lab.Passkeys.CompleteRegistrationAsync(Username, key.Register(ceremony)));
 
-        // Storing anything higher than the authenticator's own counter locks the
-        // passkey out: every later assertion would look like it had gone backwards.
         Assert.Equal(key.SignCount, registered.Credential.SignCount);
     }
 
@@ -375,7 +341,6 @@ public class ExerciseThreeCompleteRegistrationTests
 
         var abandoned = Exercise.OrSkip(() => lab.Passkeys.BeginRegistration(Username, FullName));
 
-        // The page was reloaded, so a second ceremony took the first one's place.
         lab.Passkeys.BeginRegistration(Username, FullName);
 
         Assert.True(await Exercise.RefusedOrSkipAsync<RegisteredPasskey>(
@@ -405,8 +370,6 @@ public class ExerciseThreeCompleteRegistrationTests
 
         var ceremony = Exercise.OrSkip(() => lab.Passkeys.BeginRegistration(Username, FullName));
 
-        // Right challenge, right origin, wrong rpIdHash: a passkey bound to somebody
-        // else's domain, which MedSign could never be shown again.
         Assert.True(await Exercise.RefusedOrSkipAsync<RegisteredPasskey>(
             async () => await lab.Passkeys.CompleteRegistrationAsync(Username, key.Register(ceremony))));
     }
@@ -429,8 +392,6 @@ public class ExerciseThreeCompleteRegistrationTests
         var lab = new Lab();
         using var key = new VirtualAuthenticator();
 
-        // Somebody else already holds this credential. Only MedSign knows that --
-        // the library has to be told to ask.
         lab.Enrol(key, "someone.else");
 
         var ceremony = Exercise.OrSkip(() => lab.Passkeys.BeginRegistration(Username, FullName));
@@ -440,9 +401,6 @@ public class ExerciseThreeCompleteRegistrationTests
     }
 }
 
-/// <summary>
-/// Exercise 5 -- MedSignPasskeys.BeginSignInAsync.
-/// </summary>
 public class ExerciseFiveBeginSignInTests
 {
     [Fact]
@@ -507,8 +465,6 @@ public class ExerciseFiveBeginSignInTests
 
         var options = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
 
-        // allowCredentials is read by anyone who can post a username, so it must
-        // only ever name the keys of the account that was asked about.
         Assert.Single(options.AllowCredentials);
         Assert.DoesNotContain(options.AllowCredentials, c => c.Id.SequenceEqual(theirs.CredentialId));
     }
@@ -552,9 +508,6 @@ public class ExerciseFiveBeginSignInTests
     {
         var lab = new Lab();
 
-        // Nobody is enrolled here. A challenge still has to come back, and it still
-        // has to be held: if MedSign refused early, the sign-in page would become a
-        // way to ask which doctors have accounts.
         var options = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync("nobody.here"));
 
         Assert.Equal(32, options.Challenge.Length);
@@ -563,12 +516,6 @@ public class ExerciseFiveBeginSignInTests
     }
 }
 
-/// <summary>
-/// Exercise 7 -- MedSignPasskeys.CompleteSignInAsync.
-///
-/// The account is enrolled straight into the database rather than through the
-/// registration exercise, so a failure here is about this method and nothing else.
-/// </summary>
 public class ExerciseSevenCompleteSignInTests
 {
     [Fact]
@@ -603,9 +550,6 @@ public class ExerciseSevenCompleteSignInTests
 
         Assert.NotNull(verified);
 
-        // /sign-in writes the new counter straight onto what comes back and saves.
-        // A detached copy -- anything read with AsNoTracking, or rebuilt by hand --
-        // makes that save a no-op, and the counter check silently stops working.
         Assert.NotEqual(EntityState.Detached, lab.Db.Entry(verified.Credential).State);
         Assert.NotEqual(EntityState.Detached, lab.Db.Entry(verified.Account).State);
     }
@@ -626,8 +570,6 @@ public class ExerciseSevenCompleteSignInTests
         var verified = await Exercise.OrSkipAsync(() => lab.Passkeys.CompleteSignInAsync(
             account.Username, securityKey.SignIn(ceremony, account.Handle)));
 
-        // Verifying against the first stored key rather than the one named by the
-        // answer means the second passkey a doctor enrols never works again.
         Assert.NotNull(verified);
         Assert.Equal(securityKey.CredentialId, verified.Credential.CredentialId);
     }
@@ -646,7 +588,6 @@ public class ExerciseSevenCompleteSignInTests
 
         Assert.NotNull(once);
 
-        // What the endpoint does between the two sign-ins.
         once.Credential.SignCount = once.SignCount;
         await lab.Db.SaveChangesAsync();
 
@@ -665,8 +606,6 @@ public class ExerciseSevenCompleteSignInTests
         using var key = new VirtualAuthenticator();
         var account = lab.Enrol(key, signCount: 5);
 
-        // The next assertion this key produces carries 5, exactly what is stored.
-        // Two assertions at the same count means two copies of one authenticator.
         key.SignCount = 4;
 
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
@@ -681,8 +620,6 @@ public class ExerciseSevenCompleteSignInTests
         var lab = new Lab();
         using var key = new VirtualAuthenticator();
 
-        // The stored counter is far ahead of the one now answering, which is what a
-        // cloned authenticator looks like from here.
         var account = lab.Enrol(key, signCount: 500);
 
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
@@ -755,8 +692,6 @@ public class ExerciseSevenCompleteSignInTests
         using var key = new VirtualAuthenticator();
         var account = lab.Enrol(key);
 
-        // The right credential id, a key MedSign never saw. Only the stored public
-        // key tells the two apart.
         using var impostor = new VirtualAuthenticator { CredentialId = key.CredentialId };
 
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
@@ -803,8 +738,6 @@ public class ExerciseSevenCompleteSignInTests
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
         var answer = key.SignIn(ceremony, account.Handle);
 
-        // Nothing is held any more: the challenge was already spent elsewhere.
-        // A well-formed answer to a ceremony MedSign is not holding proves nothing.
         lab.Challenges.ConsumeAssertion(account.Username);
 
         Assert.True(await Exercise.RefusedOrSkipAsync<VerifiedAssertion>(
@@ -859,8 +792,6 @@ public class ExerciseSevenCompleteSignInTests
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
         var answer = key.SignIn(ceremony, account.Handle);
 
-        // The first bytes of authenticatorData are the rpIdHash, and the signature
-        // covers them: this is the same answer, re-pointed at another site.
         var tampered = answer with
         {
             Response = answer.Response with
@@ -925,8 +856,6 @@ public class ExerciseSevenCompleteSignInTests
         var ceremony = await Exercise.OrSkipAsync(() => lab.Passkeys.BeginSignInAsync(account.Username));
         var answer = key.SignIn(ceremony, account.Handle);
 
-        // Empty, unparseable, or simply not a credential this account holds. None of
-        // them is a signature to check, so none of them may reach the library.
         var bogus = answer with { Id = rawId, RawId = rawId };
 
         Assert.True(await Exercise.RefusedOrSkipAsync<VerifiedAssertion>(

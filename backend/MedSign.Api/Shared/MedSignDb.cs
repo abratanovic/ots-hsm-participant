@@ -11,7 +11,6 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
     public DbSet<PasskeyCredential> PasskeyCredentials => Set<PasskeyCredential>();
     public DbSet<JwtSigningKey> JwtSigningKeys => Set<JwtSigningKey>();
 
-    /// <summary>Per-doctor document signing keys. Not <see cref="JwtSigningKeys"/>.</summary>
     public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
 
     public DbSet<MedicalReport> MedicalReports => Set<MedicalReport>();
@@ -27,8 +26,6 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
             user.Property(u => u.DisplayName).IsRequired();
             user.Property(u => u.Role).IsRequired();
 
-            // Restricted, not cascade: deleting a key out from under a doctor
-            // would leave their signed reports pointing at nothing.
             user.HasOne(u => u.SigningKey)
                 .WithMany()
                 .HasForeignKey(u => u.SigningKeyId)
@@ -39,7 +36,6 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
         {
             key.HasKey(k => k.Id);
 
-            // The device tells keys apart by label alone, so MedSign must too.
             key.HasIndex(k => k.KeyLabel).IsUnique();
 
             key.Property(k => k.KeyLabel).IsRequired();
@@ -50,8 +46,6 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
         {
             report.HasKey(r => r.Id);
 
-            // The public id is the API's id and the PDF's filename stem, so it
-            // has to identify exactly one report in both places.
             report.HasIndex(r => r.PublicId).IsUnique();
 
             report.Property(r => r.PublicId).IsRequired();
@@ -60,13 +54,8 @@ public sealed class MedSignDb(DbContextOptions<MedSignDb> options) : DbContext(o
             report.Property(r => r.FileName).IsRequired();
             report.Property(r => r.Sha256).IsRequired();
 
-            // Not nullable, and that is the design: a report with no signature
-            // is a state MedSign does not have.
             report.Property(r => r.Signature).IsRequired();
 
-            // Restricted throughout. A report is a record of something that
-            // happened; deleting an account or a key out from under one would
-            // leave a signed document nothing can explain.
             report.HasOne(r => r.Doctor)
                 .WithMany()
                 .HasForeignKey(r => r.DoctorUserId)

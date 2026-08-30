@@ -14,31 +14,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// The whole application, in memory, wired the way Program.cs wires it.
-///
-/// The endpoint exercises are about what MedSign puts on the wire -- which
-/// refusals look alike, what a duplicate credential does, whether the new
-/// signature counter survives the request -- and none of that is visible from
-/// inside a handler. So these tests go over HTTP, through the real routing,
-/// serialisation and middleware, against a database that lives and dies with
-/// the test.
-/// </summary>
 public sealed class MedSignHost : WebApplicationFactory<Program>
 {
-    /// <summary>
-    /// Held open for the lifetime of the host: an in-memory SQLite database exists
-    /// only while something is connected to it.
-    /// </summary>
     private readonly SqliteConnection _keepAlive;
 
     private readonly int? _sessionLifetimeMinutes;
 
-    /// <param name="sessionLifetimeMinutes">
-    /// How long the tokens this host issues stay good for. A negative lifetime
-    /// hands out a token that was already expired when it was signed, which is
-    /// how the expiry tests get one without a clock the running app shares.
-    /// </param>
     public MedSignHost(int? sessionLifetimeMinutes = null)
     {
         _sessionLifetimeMinutes = sessionLifetimeMinutes;
@@ -52,37 +33,19 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
 
     public string ConnectionString { get; }
 
-    /// <summary>
-    /// Where this host's report PDFs land: a directory of its own, removed when
-    /// it is disposed. Redirecting the storage root is all it takes, which is
-    /// the whole reason the root is configuration rather than a constant.
-    /// </summary>
     public string StorageRoot { get; }
 
-    /// <summary>
-    /// Where the PDF for a report with this id has to be, spelled out here
-    /// rather than asked of the application: the path is part of the contract.
-    /// </summary>
     public string DocumentPath(string reportId) =>
         Path.Combine(StorageRoot, "reports", $"{reportId}.pdf");
 
-    /// <summary>
-    /// Configuration this host starts with, for the settings only one test
-    /// cares about. Write to it before touching anything that boots the host --
-    /// the first request, or the first call that reaches the database.
-    /// </summary>
     public Dictionary<string, string?> Settings { get; } = [];
 
-    /// <summary>The one origin this relying party accepts, as the tests configure it.</summary>
     public const string Origin = Lab.Origin;
 
     public const string RpId = Lab.RpId;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // The signing key reaches the running app as an environment variable. Handing
-        // it to the host as a setting keeps it out of this test process's environment,
-        // which every other test would share.
         builder.UseSetting(EnvJwtSigningProvider.KeyVariable, Build.SigningKey);
 
         builder.UseSetting("ConnectionStrings:MedSign", ConnectionString);
@@ -103,9 +66,6 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
             builder.UseSetting(key, value);
         }
 
-        // There is no YubiHSM in a test run and no simulator to stand in for
-        // one, so the device is swapped out here, at the composition root,
-        // rather than anywhere a test can reach into.
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IDocumentSigner>();
@@ -113,16 +73,8 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         });
     }
 
-    /// <summary>
-    /// The device this host is running against. Tests touch it only to unplug
-    /// it -- everything else goes over HTTP.
-    /// </summary>
     public FakeDocumentSigner Hsm { get; } = new();
 
-    /// <summary>
-    /// An account with no passkey on it -- everything the session tests need,
-    /// without a ceremony. <see cref="Enrol"/> is for the tests that sign in.
-    /// </summary>
     public User Account(string username, string role, string fullName)
     {
         using var scope = Services.CreateScope();
@@ -142,12 +94,6 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         return user;
     }
 
-    /// <summary>
-    /// The session token a finished sign-in would hand this account, minted by
-    /// the application's own issuer with the application's own key. Going
-    /// through the sign-in endpoint instead would make every authorisation test
-    /// depend on the passkey exercise being finished.
-    /// </summary>
     public string TokenFor(User user)
     {
         using var scope = Services.CreateScope();
@@ -160,11 +106,6 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         return services.GetRequiredService<JwtIssuer>().IssueJwt(user, key);
     }
 
-    /// <summary>
-    /// An account that already holds this authenticator's passkey, written straight
-    /// to the database -- the state a finished registration leaves behind, without
-    /// depending on the registration exercise being done.
-    /// </summary>
     public User Enrol(VirtualAuthenticator authenticator, string username = "h.novak", long signCount = 0)
     {
         using var scope = Services.CreateScope();
@@ -188,7 +129,6 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         return user;
     }
 
-    /// <summary>Reads the database the application just wrote to.</summary>
     public T Read<T>(Func<MedSignDb, T> read)
     {
         using var scope = Services.CreateScope();
@@ -216,23 +156,16 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
     }
 }
 
-/// <summary>
-/// One request and its answer, kept together so a test can assert on the status
-/// and the body without threading both through every helper.
-/// </summary>
 public sealed record Answer(HttpStatusCode Status, JsonElement Body, string Raw)
 {
     public bool Ok => Status == HttpStatusCode.OK;
 
-    /// <summary>The media type MedSign labelled the body with, if any.</summary>
     public string? ContentType { get; init; }
 
-    /// <summary>The elements of a bare JSON array answer, in the order they arrived.</summary>
     public IReadOnlyList<JsonElement> Items => Body.ValueKind == JsonValueKind.Array
         ? [.. Body.EnumerateArray()]
         : [];
 
-    /// <summary>The named property, or null when the answer does not carry one.</summary>
     public JsonElement? Field(string name) =>
         Body.ValueKind == JsonValueKind.Object && Body.TryGetProperty(name, out var value)
             ? value
@@ -240,23 +173,19 @@ public sealed record Answer(HttpStatusCode Status, JsonElement Body, string Raw)
 
     public string? Text(string name) => Field(name)?.GetString();
 
-    /// <summary>Decodes a base64url field the browser would have handed to the authenticator.</summary>
     public byte[] Bytes(string name) => Base64Url.Decode(
         Text(name) ?? throw new InvalidOperationException(
             $"The answer has no '{name}':\n{Raw}"));
 
-    /// <summary>A base64url field one level down, e.g. user.id on a creation ceremony.</summary>
     public byte[] Bytes2(string parent, string name) => Base64Url.Decode(
         Field(parent)?.GetProperty(name).GetString() ?? throw new InvalidOperationException(
             $"The answer has no '{parent}.{name}':\n{Raw}"));
 
-    /// <summary>The property names on the answer, in order -- what a caller can see.</summary>
     public IReadOnlyList<string> Shape() => Body.ValueKind == JsonValueKind.Object
         ? [.. Body.EnumerateObject().Select(property => property.Name)]
         : [];
 }
 
-/// <summary>The four passkey routes, as the browser calls them.</summary>
 public static class Api
 {
     public const string RegistrationChallenge = "/api/auth/registration-challenge";
@@ -264,7 +193,6 @@ public static class Api
     public const string SignInChallenge = "/api/auth/sign-in-challenge";
     public const string SignIn = "/api/auth/sign-in";
 
-    /// <summary>The first endpoint behind a session.</summary>
     public const string Patients = "/api/patients";
 
     public const string SigningStatus = "/api/signing/status";
@@ -272,13 +200,10 @@ public static class Api
 
     public const string Reports = "/api/reports";
 
-    /// <summary>One report, by the public id the API answered with.</summary>
     public static string Report(string id) => $"{Reports}/{id}";
 
-    /// <summary>That report's PDF.</summary>
     public static string Document(string id) => $"{Reports}/{id}/document";
 
-    /// <summary>The question that report exists to answer.</summary>
     public static string Verification(string id) => $"{Reports}/{id}/verification";
 
     public static async Task<Answer> PostAsync(
@@ -296,14 +221,6 @@ public static class Api
         return await ReadAsync(await client.SendAsync(request));
     }
 
-    /// <summary>
-    /// A GET, optionally carrying a session. Not named GetAsync: an extension
-    /// never wins against HttpClient's own method, so the token would be
-    /// silently dropped.
-    ///
-    /// The token goes on unvalidated, because half the point is to send tokens
-    /// that are not well formed.
-    /// </summary>
     public static async Task<Answer> AskAsync(this HttpClient client, string route, string? token = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, route);
@@ -313,11 +230,6 @@ public static class Api
         return await ReadAsync(await client.SendAsync(request));
     }
 
-    /// <summary>
-    /// A GET whose answer is not JSON. <see cref="AskAsync"/> parses the body,
-    /// which a PDF is not, so a download is fetched as the response itself and
-    /// the test reads the bytes and the headers off it.
-    /// </summary>
     public static Task<HttpResponseMessage> FetchAsync(
         this HttpClient client, string route, string? token = null)
     {
@@ -362,18 +274,10 @@ public static class Api
         new { username, assertion };
 }
 
-/// <summary>
-/// The endpoint half of <see cref="Exercise"/>.
-///
-/// ProblemMiddleware turns the NotImplementedException an unstarted exercise
-/// throws into 501, so a test can tell "nobody has written this yet" apart from
-/// "this is wrong" without reaching inside the application.
-/// </summary>
 public static class EndpointExercise
 {
     private const string Pending = "Not implemented yet -- this is the exercise.";
 
-    /// <summary>The answer, unless the exercise behind it has not been started.</summary>
     public static Answer OrSkip(this Answer answer)
     {
         if (answer.Status == HttpStatusCode.NotImplemented)
@@ -384,10 +288,5 @@ public static class EndpointExercise
         return answer;
     }
 
-    /// <summary>
-    /// True when MedSign refused. Any answer that is not 200 is a refusal here:
-    /// which status a refusal carries is asserted where it matters, and this is
-    /// for the cases where the only thing that must hold is "not a session".
-    /// </summary>
     public static bool Refused(this Answer answer) => !answer.OrSkip().Ok;
 }

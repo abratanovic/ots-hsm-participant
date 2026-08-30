@@ -8,27 +8,10 @@ using UglyToad.PdfPig;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// POST /api/reports.
-///
-/// This is where the workshop's claim stops being about keys and becomes
-/// something a participant can hold: a doctor writes their findings, MedSign
-/// renders a PDF, and the device signs that file's digest with a key belonging
-/// to that doctor and to nobody else.
-///
-/// The act is deliberately indivisible. A report that exists without a
-/// signature is not a state this system has, so every test below that makes
-/// signing fail asserts on both halves -- no row, and no file.
-/// </summary>
 public class ReportIssuingTests
 {
     private const string Findings = "Blood pressure 128/82. No further action.";
 
-    /// <summary>
-    /// A doctor who has already enabled signing, and a patient to write about.
-    /// Enrolment goes through the endpoint rather than the database, so these
-    /// tests start from a state the application itself produced.
-    /// </summary>
     private static async Task<Clinic> ClinicAsync()
     {
         var host = new MedSignHost();
@@ -64,7 +47,6 @@ public class ReportIssuingTests
 
         Assert.Equal(HttpStatusCode.OK, answer.Status);
 
-        // A guid, so a report URL says nothing about how many reports exist.
         Assert.True(Guid.TryParse(answer.Text("id"), out var publicId));
         Assert.NotEqual(Guid.Empty, publicId);
 
@@ -72,8 +54,6 @@ public class ReportIssuingTests
         Assert.Equal(Findings, answer.Text("body"));
         Assert.NotNull(answer.Field("issuedAt"));
 
-        // Both parties by name: a report the frontend cannot attribute to a
-        // person is a row of identifiers.
         Assert.Equal("Marko Kovač", answer.Field("patient")?.GetProperty("name").GetString());
         Assert.Equal("Dr. Helena Novak", answer.Field("doctor")?.GetProperty("name").GetString());
 
@@ -88,9 +68,6 @@ public class ReportIssuingTests
         Assert.Equal("ES256", signature.GetProperty("algorithm").GetString());
         Assert.False(string.IsNullOrWhiteSpace(signature.GetProperty("value").GetString()));
 
-        // The key is not named. Its label is how MedSign addresses an object on
-        // the device, and a report that carried it would hand every reader the
-        // name the device answers to for no purpose the reader has.
         Assert.False(signature.TryGetProperty("keyId", out _));
         Assert.DoesNotContain(DoctorKeyLabel.For(clinic.Doctor.Id), answer.Raw);
     }
@@ -116,8 +93,6 @@ public class ReportIssuingTests
             Convert.ToHexStringLower(SHA256.HashData(stored)),
             document.GetProperty("sha256").GetString());
 
-        // The storage name is the public id; the display name is not, so a
-        // download can be called something a person would recognise.
         Assert.NotEqual($"{answer.Text("id")}.pdf", document.GetProperty("fileName").GetString());
         Assert.Contains("kovac", document.GetProperty("fileName").GetString()!);
     }
@@ -133,10 +108,6 @@ public class ReportIssuingTests
         var report = owned.Read(db => db.MedicalReports.Include(r => r.SigningKey).Single());
         var stored = File.ReadAllBytes(owned.DocumentPath(answer.Text("id")!));
 
-        // The end-to-end claim, checked the way a verifier will: the stored
-        // signature, the stored public point, the digest of the file on disk.
-        // The fake device signs with a genuine P-256 key, so this is the real
-        // curve arithmetic rather than a stub agreeing with itself.
         using var ecdsa = ECDsa.Create(new ECParameters
         {
             Curve = ECCurve.NamedCurves.nistP256,
@@ -152,8 +123,6 @@ public class ReportIssuingTests
             report.Signature,
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
 
-        // The key, not merely the doctor: a report has to stay verifiable even
-        // if that doctor's key situation changes later.
         var doctorsKeyId = owned.Read(db => db.Users
             .Single(user => user.Id == clinic.Doctor.Id).SigningKeyId);
 
@@ -171,8 +140,6 @@ public class ReportIssuingTests
         var answer = await clinic.IssueAsync(
             clinic.Draft(type: ReportTypes.DischargeSummary, body: Findings));
 
-        // Read back out of the file rather than trusted from the response: the
-        // PDF has to stand on its own once it is away from the application.
         var text = PdfWords.In(File.ReadAllBytes(owned.DocumentPath(answer.Text("id")!)));
 
         Assert.Contains("Dr. Helena Novak", text);
@@ -223,8 +190,6 @@ public class ReportIssuingTests
         Assert.Equal(HttpStatusCode.BadRequest, tooLong.Status);
         Assert.Equal(Problem.ContentType, tooLong.ContentType);
 
-        // A clear message, not a truncated document: the doctor finds out now
-        // rather than by reading a report that stops mid-sentence.
         Assert.Contains(
             MedicalReport.MaxBodyLength.ToString("N0", CultureInfo.InvariantCulture),
             tooLong.Raw);
@@ -260,8 +225,6 @@ public class ReportIssuingTests
             type = ReportTypes.Findings,
             body = Findings,
 
-            // What the frontend used to send. A report is about a person who
-            // holds an account, not about a name somebody typed into a form.
             patient = new { name = "Someone Else", dateOfBirth = "1970-01-01" },
         }, clinic.Token);
 
@@ -280,8 +243,6 @@ public class ReportIssuingTests
         Assert.Equal(HttpStatusCode.BadRequest, unknown.Status);
         Assert.Equal(Problem.ContentType, unknown.ContentType);
 
-        // A colleague's account is a real user and still not a recipient:
-        // filing findings against another doctor is the mistake this prevents.
         var colleague = owned.Account("i.babic", Roles.Doctor, "Dr. Ivan Babić");
 
         var wrongRole = await clinic.IssueAsync(clinic.Draft(patientId: colleague.Id));
@@ -305,8 +266,6 @@ public class ReportIssuingTests
             body = Findings,
         }, host.TokenFor(doctor));
 
-        // Not a generic failure: there is one specific thing this doctor has
-        // to do first, and the response is where they find that out.
         Assert.Equal(HttpStatusCode.Conflict, answer.Status);
         Assert.Equal(Problem.ContentType, answer.ContentType);
         Assert.Contains("signing", answer.Raw, StringComparison.OrdinalIgnoreCase);
@@ -340,8 +299,6 @@ public class ReportIssuingTests
         var clinic = await ClinicAsync();
         using var owned = clinic.Host;
 
-        // Enrolment already succeeded, so this fails at the signing step --
-        // after the PDF has been rendered and written to disk.
         owned.Hsm.Unavailable = true;
 
         var answer = await clinic.IssueAsync();
@@ -349,20 +306,15 @@ public class ReportIssuingTests
         Assert.Equal(HttpStatusCode.ServiceUnavailable, answer.Status);
         Assert.Equal(Problem.ContentType, answer.ContentType);
 
-        // Both halves. An unsigned report is not a state this system has, and
-        // an orphaned PDF nothing points at is not one either.
         Assert.Equal(0, owned.Read(db => db.MedicalReports.Count()));
         Assert.Empty(Documents(owned));
 
-        // And the failure is not terminal: the doctor tries again once the
-        // device is back.
         owned.Hsm.Unavailable = false;
 
         Assert.Equal(HttpStatusCode.OK, (await clinic.IssueAsync()).Status);
         Assert.Single(Documents(owned));
     }
 
-    /// <summary>Every PDF this host has written, however it came to be there.</summary>
     private static IReadOnlyList<string> Documents(MedSignHost host)
     {
         var reports = Path.Combine(host.StorageRoot, ReportStorage.Reports);
@@ -371,14 +323,6 @@ public class ReportIssuingTests
     }
 }
 
-/// <summary>
-/// The words on the page.
-///
-/// The rendered document is the artifact that is signed and the thing a patient
-/// keeps, so "does it say who issued it" is a question worth asking of the file
-/// rather than of the code that wrote it. Reading text back out means a real
-/// PDF parser; the alternative was to assert nothing about the page at all.
-/// </summary>
 internal static class PdfWords
 {
     public static string In(byte[] pdf)

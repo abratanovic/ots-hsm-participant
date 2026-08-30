@@ -27,17 +27,6 @@ public sealed class HsmCommunicator : IDisposable
         }
     }
 
-    // ---- Operations ------------------------------------------------------
-
-    /// <summary>
-    /// Generates a P-256 key pair on the device under the given label and returns
-    /// the public point, uncompressed.
-    ///
-    /// CKA_TOKEN keeps the key after the session ends, CKA_SIGN is what it may be
-    /// used for, and CKA_EXTRACTABLE = false is the whole point of the exercise: the
-    /// private half has no way out of the device, so there is no file to leak, no
-    /// variable to print, and no copy to lose.
-    /// </summary>
     public byte[] CreateKey(string label) => Execute(session =>
     {
         List<IObjectAttribute> publicTemplate =
@@ -74,10 +63,6 @@ public sealed class HsmCommunicator : IDisposable
         return ReadPoint(session, publicKey);
     });
 
-    /// <summary>
-    /// The public point of the key stored under the given label, or null if the
-    /// device is not holding one. Never the private half -- see CreateKey.
-    /// </summary>
     public byte[]? GetKey(string label) => Execute(session =>
     {
         var publicKey = FindOne(session, label, CKO.CKO_PUBLIC_KEY);
@@ -85,14 +70,6 @@ public sealed class HsmCommunicator : IDisposable
         return publicKey is null ? null : ReadPoint(session, publicKey);
     });
 
-    /// <summary>
-    /// Signs a digest with the private key stored under the given label, and returns
-    /// the raw R||S pair that a JWS signature -- or a PDF one -- is built from.
-    ///
-    /// CKM_ECDSA signs a digest that is already computed, so the device never sees
-    /// the message. The key is looked up on every call rather than cached: an object
-    /// handle does not survive the session being reset underneath us, and a label does.
-    /// </summary>
     public byte[] SignDigest(string label, byte[] digest) => Execute(session =>
     {
         var privateKey = FindOne(session, label, CKO.CKO_PRIVATE_KEY)
@@ -103,8 +80,6 @@ public sealed class HsmCommunicator : IDisposable
 
         return session.Sign(_factories.MechanismFactory.Create(CKM.CKM_ECDSA), privateKey, digest);
     });
-
-    // ---- Objects ---------------------------------------------------------
 
     private IObjectHandle? FindOne(ISession session, string label, CKO objectClass)
     {
@@ -125,10 +100,6 @@ public sealed class HsmCommunicator : IDisposable
         return found.Count == 1 ? found[0] : null;
     }
 
-    /// <summary>
-    /// CKA_EC_POINT comes back as a DER OCTET STRING wrapping the point, and how
-    /// much wrapping depends on the device. EcPoint.Unwrap takes it back off.
-    /// </summary>
     private static byte[] ReadPoint(ISession session, IObjectHandle publicKey)
     {
         var attribute = session.GetAttributeValue(publicKey, [CKA.CKA_EC_POINT]).Single();
@@ -149,13 +120,6 @@ public sealed class HsmCommunicator : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "No attribute shape for this."),
     };
 
-    // ---- Session ---------------------------------------------------------
-
-    /// <summary>
-    /// Runs the work against a logged-in session, and once more against a fresh one
-    /// if the device had closed the first. Serialised: a PKCS#11 session is a single
-    /// conversation, and two requests interleaved on it is not one.
-    /// </summary>
     private T Execute<T>(Func<ISession, T> work)
     {
         lock (_gate)
@@ -208,7 +172,6 @@ public sealed class HsmCommunicator : IDisposable
                 "No slot with a token present. Is the Connector running and reachable at the address "
                 + "in yubihsm_pkcs11.conf?");
 
-        // Read-write, because provisioning generates a key pair on the device.
         var session = slot.OpenSession(SessionType.ReadWrite);
 
         try

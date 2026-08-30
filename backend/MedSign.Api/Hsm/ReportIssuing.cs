@@ -6,20 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Api.Hsm;
 
-/// <summary>
-/// Issuing a report: recording it, rendering it, hashing the file and having
-/// the device sign that hash with the doctor's own key.
-///
-/// It is one method because it is one act. Splitting "persist and render" from
-/// "sign" would create the state the design forbids -- a report on file that
-/// nothing attests to -- so the two cannot be separately callable.
-///
-/// The order is what makes it atomic, and it is deliberate: everything that can
-/// fail happens before the row is written. Rendering, writing the file and
-/// signing all come first; <c>SaveChanges</c> is the last thing that happens
-/// and is itself the transaction. So a device that cannot sign leaves no row at
-/// all, and the file written moments earlier is deleted on the way out.
-/// </summary>
 public sealed class ReportIssuing(
     MedSignDb db,
     IDocumentSigner signer,
@@ -72,8 +58,6 @@ public sealed class ReportIssuing(
                 FileSizeBytes = pdf.LongLength,
                 Sha256 = Convert.ToHexStringLower(digest),
 
-                // The device, with this doctor's key and nobody else's. Last
-                // before the commit, so its failure is the request's failure.
                 Signature = signer.SignDigest(key.KeyLabel, digest),
                 SigningKeyId = key.Id,
                 SigningKey = key,
@@ -92,13 +76,6 @@ public sealed class ReportIssuing(
         }
     }
 
-    /// <summary>
-    /// Removes the document written for a report that was never issued.
-    ///
-    /// Best effort: this runs with the real failure already on its way up, and
-    /// a file that will not delete must not replace a "the HSM is down" with an
-    /// IO error. Nothing points at the orphan either way.
-    /// </summary>
     private void Discard(Guid publicId)
     {
         try
@@ -139,13 +116,6 @@ public sealed class ReportIssuing(
                 + $"{MedicalReport.MaxBodyLength.ToString("N0", CultureInfo.InvariantCulture)}.");
     }
 
-    /// <summary>
-    /// The account the report is about.
-    ///
-    /// Only patients, and checked here rather than trusted from the patient
-    /// list the frontend picked from: a report filed against a colleague's
-    /// account is somebody's findings in the wrong person's record.
-    /// </summary>
     private User ReadPatient(int patientId)
     {
         var patient = db.Users.SingleOrDefault(user => user.Id == patientId)
@@ -160,29 +130,13 @@ public sealed class ReportIssuing(
     }
 }
 
-/// <summary>
-/// What a doctor supplies. Everything else -- the identifier, the date, both
-/// parties' names, the file and the signature -- is MedSign's to derive, which
-/// is why a patient is named by account id and not by name.
-/// </summary>
 public sealed record IssueReport(int PatientId, string? Type, string? Body);
 
-/// <summary>
-/// What a download is called.
-///
-/// Purely cosmetic and deliberately not the storage name: the file on disk is
-/// named by the report's public id so a path leaks nothing, while a patient
-/// saving their own record gets something they can find again.
-/// </summary>
 public static class DownloadName
 {
     public static string For(string type, DateTimeOffset issuedAt, string patientName) =>
         $"{type}-{issuedAt:yyyy-MM-dd}-{Slug(patientName)}.pdf";
 
-    /// <summary>
-    /// A name reduced to what every file system agrees on. Diacritics are
-    /// folded rather than dropped, so Kovač stays kovac rather than kova.
-    /// </summary>
     private static string Slug(string name)
     {
         var folded = new StringBuilder();

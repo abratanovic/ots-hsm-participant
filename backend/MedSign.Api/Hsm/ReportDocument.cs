@@ -4,15 +4,6 @@ using QuestPDF.Infrastructure;
 
 namespace MedSign.Api.Hsm;
 
-/// <summary>
-/// What goes on the page.
-///
-/// A report is rendered once, at the moment it is issued, and the bytes that
-/// come out are what gets hashed and signed. So this type takes finished text
-/// -- names already resolved from accounts, the type already spelled out for a
-/// reader -- and does no lookups of its own. Nothing it renders may depend on
-/// when it runs.
-/// </summary>
 public sealed record ReportContent(
     DateTimeOffset IssuedAt,
     string DoctorName,
@@ -20,23 +11,8 @@ public sealed record ReportContent(
     string Type,
     string Body);
 
-/// <summary>
-/// The rendered medical report: a document that has to stand on its own away
-/// from the application, because a patient will keep, print or forward it.
-///
-/// No font family is named. QuestPDF embeds its own, which is the only way the
-/// diacritics in Croatian names survive a container that has no system fonts
-/// installed.
-/// </summary>
 public static class ReportDocument
 {
-    /// <summary>
-    /// Renders a report to PDF bytes.
-    ///
-    /// The result is never written twice and never regenerated: these exact
-    /// bytes are hashed and signed, and a second rendering would not reproduce
-    /// them.
-    /// </summary>
     public static byte[] Render(ReportContent content) => Document
         .Create(document => document.Page(page =>
         {
@@ -73,10 +49,6 @@ public static class ReportDocument
                 .Text(content.Body);
         });
 
-    /// <summary>
-    /// Who wrote it and who it is about, side by side. Both names came from
-    /// accounts MedSign holds; neither was typed into the request.
-    /// </summary>
     private static void Parties(IContainer container, ReportContent content) => container
         .BorderTop(1).BorderBottom(1).BorderColor(Colors.Grey.Lighten1)
         .PaddingVertical(12)
@@ -93,12 +65,6 @@ public static class ReportDocument
             column.Item().Text(name).SemiBold();
         });
 
-    /// <summary>
-    /// Says where the signature is, because it is not in this file. MedSign
-    /// signs the document's digest and stores the signature beside it, so a PDF
-    /// reader will not show this as signed and a reader of the paper should not
-    /// conclude it is unsigned.
-    /// </summary>
     private static void Footnote(IContainer container) => container
         .PaddingTop(1, Unit.Centimetre)
         .Text("Signed by the issuing doctor's key on MedSign's hardware security module. "

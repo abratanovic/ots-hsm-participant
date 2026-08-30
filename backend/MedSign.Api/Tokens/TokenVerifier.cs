@@ -63,15 +63,6 @@ public static class TokenVerifier
         return null;
     }
 
-    /// <summary>
-    /// The read-back half of <see cref="Diagnose"/>. Diagnose answers "did this
-    /// key sign these bytes"; this answers "and may the bearer act on it" -- the
-    /// same signature check, then the claims that decide whether the session is
-    /// still MedSign's and still alive.
-    ///
-    /// Nothing here touches the database: a token that verifies is trusted for
-    /// what it says, which is the whole point of signing it.
-    /// </summary>
     public static SessionReview ReviewSession(
         string token, JwtSigningKey key, JwtOptions jwt, DateTimeOffset now)
     {
@@ -80,7 +71,6 @@ public static class TokenVerifier
             return SessionReview.Refused(problem);
         }
 
-        // Diagnose has already established three segments and a decodable payload.
         JsonElement claims;
         try
         {

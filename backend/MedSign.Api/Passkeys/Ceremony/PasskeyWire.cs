@@ -7,7 +7,6 @@ namespace MedSign.Api.Passkeys;
 
 public static class PasskeyWire
 {
-
     public static PasskeyCreationChallenge ToWire(CredentialCreateOptions options) =>
         new(
             Challenge: Base64Url.Encode(options.Challenge),

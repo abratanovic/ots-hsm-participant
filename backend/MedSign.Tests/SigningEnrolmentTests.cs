@@ -6,18 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// GET /api/signing/status and POST /api/signing/enable.
-///
-/// This is where the workshop's claim stops being about one shared server key
-/// and starts being about a key that belongs to a person: a doctor asks for a
-/// signing key, the device makes one that cannot be exported, and MedSign keeps
-/// nothing but the public half.
-///
-/// The device itself cannot take part in a test -- there is no simulator and no
-/// container for a YubiHSM -- so the host swaps in a fake that generates real
-/// P-256 keys in software. Nothing below reaches for it except to unplug it.
-/// </summary>
 public class SigningEnrolmentTests
 {
     private static (MedSignHost Host, string Token) Doctor(string username = "h.novak")
@@ -39,8 +27,6 @@ public class SigningEnrolmentTests
         Assert.Equal(HttpStatusCode.OK, answer.Status);
         Assert.False(answer.Field("enabled")?.GetBoolean());
 
-        // Nothing to describe yet, and the frontend reads a missing field as
-        // "not set up" rather than rendering a placeholder.
         Assert.Null(answer.Field("publicKeyFingerprint"));
     }
 
@@ -58,8 +44,6 @@ public class SigningEnrolmentTests
         Assert.False(string.IsNullOrWhiteSpace(enabled.Text("publicKeyFingerprint")));
         Assert.NotNull(enabled.Field("createdAt"));
 
-        // Asking again is the same answer: enrolment is a fact about the
-        // account, not a receipt for the request that created it.
         var status = await client.AskAsync(Api.SigningStatus, token);
 
         Assert.Equal(enabled.Text("publicKeyFingerprint"), status.Text("publicKeyFingerprint"));
@@ -75,8 +59,6 @@ public class SigningEnrolmentTests
 
         var stored = owned.Read(db => db.SigningKeys.Single());
 
-        // 0x04 then X then Y. A private key is 32 bytes and would fit nowhere
-        // in this row -- which is the property the whole exercise is about.
         EcPoint.EnsureUncompressedP256(stored.PublicKeyPoint);
 
         var doctor = owned.Read(db => db.Users.Single(user => user.Username == "h.novak"));
@@ -97,8 +79,6 @@ public class SigningEnrolmentTests
         Assert.Equal(HttpStatusCode.OK, second.Status);
         Assert.Equal(first.Text("publicKeyFingerprint"), second.Text("publicKeyFingerprint"));
 
-        // A second key would not be an error anywhere the user can see, and
-        // every report signed by the first would become unverifiable.
         Assert.Equal(1, owned.Read(db => db.SigningKeys.Count()));
     }
 
@@ -111,9 +91,6 @@ public class SigningEnrolmentTests
 
         var first = await client.PostAsync(Api.SigningEnable, token: token);
 
-        // The schema change in this ticket is delivered by deleting the database
-        // file, so this is not hypothetical: the device keeps its keys, and the
-        // rows that pointed at them are gone.
         owned.Read(db =>
         {
             foreach (var user in db.Users)
@@ -128,8 +105,6 @@ public class SigningEnrolmentTests
 
         var again = await client.PostAsync(Api.SigningEnable, token: token);
 
-        // The same key, not a new one -- so reports signed before the reset
-        // still verify.
         Assert.Equal(first.Text("publicKeyFingerprint"), again.Text("publicKeyFingerprint"));
     }
 
@@ -147,10 +122,6 @@ public class SigningEnrolmentTests
 
         Assert.NotEqual(mine.Text("publicKeyFingerprint"), theirs.Text("publicKeyFingerprint"));
 
-        // Both live in the same token as the application's JWT key, and the
-        // communicator looks keys up by label alone. The labels are MedSign's
-        // own business -- no response names one -- so they are read from the
-        // rows that hold them.
         var labels = owned.Read(db => db.SigningKeys.Select(key => key.KeyLabel).ToList());
         var jwtLabel = owned.Read(db => db.JwtSigningKeys.Single().Label);
 
@@ -168,9 +139,6 @@ public class SigningEnrolmentTests
         var enabled = await client.PostAsync(Api.SigningEnable, token: token);
         var status = await client.AskAsync(Api.SigningStatus, token);
 
-        // The label is how MedSign addresses an object on the device. A caller
-        // has no use for it, and the fingerprint already identifies the key, so
-        // the label never leaves the server -- under this name or any other.
         var label = owned.Read(db => db.SigningKeys.Single().KeyLabel);
 
         Assert.Null(enabled.Field("keyLabel"));
@@ -184,9 +152,6 @@ public class SigningEnrolmentTests
     {
         using var host = new MedSignHost();
 
-        // Hsm:KeyLabel is configurable, so "the prefix keeps them apart" is a
-        // convention rather than a guarantee. Point it straight at the label
-        // the first doctor would be given.
         host.Settings["Hsm:KeyLabel"] = DoctorKeyLabel.For(1);
 
         var doctor = host.Account("h.novak", Roles.Doctor, "Dr. Helena Novak");
@@ -196,8 +161,6 @@ public class SigningEnrolmentTests
         var answer = await host.CreateClient()
             .PostAsync(Api.SigningEnable, token: host.TokenFor(doctor));
 
-        // Signing anything at all with the key MedSign issues sessions with
-        // would let a doctor mint themselves a token. Refuse rather than share.
         Assert.Equal(HttpStatusCode.Conflict, answer.Status);
         Assert.Equal(0, host.Read(db => db.SigningKeys.Count()));
     }
@@ -237,8 +200,6 @@ public class SigningEnrolmentTests
 
         var answer = await owned.CreateClient().PostAsync(Api.SigningEnable, token: token);
 
-        // The same 503 the JWT path already produces when the Connector is down.
-        // A 500 here would read as a bug in MedSign rather than an unplugged cable.
         Assert.Equal(HttpStatusCode.ServiceUnavailable, answer.Status);
         Assert.Equal(Problem.ContentType, answer.ContentType);
         Assert.Equal(0, owned.Read(db => db.SigningKeys.Count()));
@@ -257,18 +218,10 @@ public class SigningEnrolmentTests
         owned.Hsm.Unavailable = false;
         var status = await client.AskAsync(Api.SigningStatus, token);
 
-        // A failed enrolment that left the account looking enabled would fail
-        // again, later, at the point where a report is being signed.
         Assert.False(status.Field("enabled")?.GetBoolean());
     }
 }
 
-/// <summary>
-/// The stand-in for the hardware. It is only worth having if it is wrong in the
-/// same ways the device would be -- so it makes genuine P-256 keys and signs
-/// with them, and later verification tests exercise the real curve arithmetic
-/// rather than agreeing with a stub.
-/// </summary>
 public class FakeDocumentSignerTests
 {
     [Fact]
@@ -312,9 +265,6 @@ public class FakeDocumentSignerTests
         signer.CreateKey("medsign-doctor-1");
         signer.CreateKey("medsign-doctor-1");
 
-        // The device does not enforce unique labels; the lookup does. Without
-        // this, "re-adopt rather than regenerate" would be untestable, because
-        // a regenerating implementation would look identical from outside.
         Assert.Throws<HsmUnavailableException>(() => signer.FindKey("medsign-doctor-1"));
     }
 }

@@ -1,9 +1,5 @@
 namespace MedSign.Api.Shared.Auth;
 
-/// <summary>
-/// The role an endpoint requires, declared on the route and enforced on the
-/// server. A frontend that hides a button is a courtesy; this is the check.
-/// </summary>
 public static class RoleRequirement
 {
     public static TBuilder RequireRole<TBuilder>(this TBuilder builder, params string[] roles)

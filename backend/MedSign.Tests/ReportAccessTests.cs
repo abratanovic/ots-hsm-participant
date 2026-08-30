@@ -5,26 +5,8 @@ using MedSign.Api.Shared;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// Reading reports back: the list, the single report, and the PDF.
-///
-/// One list endpoint serves both roles and means a different thing to each --
-/// issued-by for a doctor, issued-to for a patient -- because the caller's
-/// session is what decides, not a parameter the client supplies. There is no
-/// query a doctor can send that shows them a colleague's caseload.
-///
-/// The refusal is the other half. Someone who is party to neither side of a
-/// report gets 404 rather than 403, and the same 404 a report that was never
-/// issued would produce: a 403 would confirm the report exists, which is
-/// exactly the fact worth hiding.
-/// </summary>
 public class ReportAccessTests
 {
-    /// <summary>
-    /// Two doctors, two patients, and the tokens for all four, all issued
-    /// through the endpoints so these tests read back a state the application
-    /// itself produced.
-    /// </summary>
     private static async Task<Ward> WardAsync()
     {
         var host = new MedSignHost();
@@ -57,7 +39,6 @@ public class ReportAccessTests
     {
         public const string Findings = "Blood pressure 128/82. No further action.";
 
-        /// <summary>Issues a report and hands back the id the API gave it.</summary>
         public async Task<string> IssueAsync(string doctorToken, User patient, string? body = null)
         {
             var answer = await Host.CreateClient().PostAsync(Api.Reports, new
@@ -87,8 +68,6 @@ public class ReportAccessTests
 
         var mine = await ward.IssueAsync(ward.NovakToken, ward.Kovac);
 
-        // The same patient, a different doctor: what separates the two lists is
-        // who wrote the report, not who it is about.
         var colleagues = await ward.IssueAsync(ward.BabicToken, ward.Kovac);
 
         var answer = await ward.ListAsync(ward.NovakToken);
@@ -124,8 +103,6 @@ public class ReportAccessTests
 
         var empty = await ward.ListAsync(ward.NovakToken);
 
-        // A bare array rather than an envelope, and an empty one rather than a
-        // refusal: a doctor who has issued nothing has an empty caseload.
         Assert.Equal(JsonValueKind.Array, empty.Body.ValueKind);
         Assert.Empty(empty.Items);
 
@@ -154,7 +131,6 @@ public class ReportAccessTests
         var report = Assert.Single((await ward.ListAsync(ward.NovakToken)).Items);
         var excerpt = report.GetProperty("excerpt").GetString()!;
 
-        // A list of forty reports must not be forty whole documents on the wire.
         Assert.False(report.TryGetProperty("body", out _), "The summary carries the full body.");
         Assert.True(excerpt.Length < body.Length, "The excerpt is the whole body.");
         Assert.StartsWith("Patient reports intermittent headaches.", excerpt);
@@ -170,7 +146,6 @@ public class ReportAccessTests
 
         var report = Assert.Single((await ward.ListAsync(ward.NovakToken)).Items);
 
-        // Nothing is elided from a report short enough to read in the list.
         Assert.Equal(Ward.Findings, report.GetProperty("excerpt").GetString());
     }
 
@@ -185,8 +160,6 @@ public class ReportAccessTests
         var doctors = Assert.Single((await ward.ListAsync(ward.NovakToken)).Items);
         var patients = Assert.Single((await ward.ListAsync(ward.KovacToken)).Items);
 
-        // A doctor's list is a list of patients; a patient's list is a list of
-        // doctors. One shape answers both, so both names are on every entry.
         Assert.Equal("Marko Kovač", doctors.GetProperty("patient").GetProperty("name").GetString());
         Assert.Equal("Dr. Helena Novak", patients.GetProperty("doctor").GetProperty("name").GetString());
 
@@ -210,8 +183,6 @@ public class ReportAccessTests
             Assert.Equal(HttpStatusCode.OK, answer.Status);
             Assert.Equal(id, answer.Text("id"));
 
-            // The excerpt is what a list is for; opening a report is how the
-            // rest of it is read.
             Assert.Equal(Ward.Findings, answer.Text("body"));
             Assert.Equal("Marko Kovač", answer.Field("patient")?.GetProperty("name").GetString());
             Assert.Equal("Dr. Helena Novak", answer.Field("doctor")?.GetProperty("name").GetString());
@@ -233,8 +204,6 @@ public class ReportAccessTests
             {
                 var answer = await owned.CreateClient().AskAsync(route, stranger);
 
-                // Not 403. A refusal that tells "not yours" apart from "no such
-                // thing" tells a stranger that this patient has records.
                 Assert.Equal(HttpStatusCode.NotFound, answer.Status);
                 Assert.Equal(Problem.ContentType, answer.ContentType);
                 Assert.DoesNotContain("Kovač", answer.Raw);
@@ -247,8 +216,6 @@ public class ReportAccessTests
         var missing = await ward.ReadAsync(neverIssued, ward.NovakToken);
         var notTheirs = await ward.ReadAsync(id, ward.BabicToken);
 
-        // Indistinguishable, deliberately: the same status and the same
-        // document, with only the id the caller already knows differing.
         Assert.Equal(missing.Status, notTheirs.Status);
         Assert.Equal(
             missing.Raw.Replace(neverIssued, "{id}", StringComparison.Ordinal),
@@ -276,12 +243,9 @@ public class ReportAccessTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
 
-            // The bytes that were hashed and signed, not a fresh rendering: a
-            // regenerated PDF would not match its own signature.
             Assert.Equal(stored, await response.Content.ReadAsByteArrayAsync(
                 TestContext.Current.CancellationToken));
 
-            // The recorded display name, so a downloads folder stays navigable.
             var disposition = response.Content.Headers.ContentDisposition;
 
             Assert.Equal(fileName, disposition?.FileNameStar ?? disposition?.FileName?.Trim('"'));
@@ -300,15 +264,9 @@ public class ReportAccessTests
 
         var answer = await owned.CreateClient().AskAsync(Api.Document(id), ward.NovakToken);
 
-        // Gone, not a conflict to retry past: a regenerated PDF would be
-        // byte-different, so the signature stored beside it would no longer
-        // verify, and a download that quietly re-rendered would hand a patient
-        // a document their own records call a forgery.
         Assert.Equal(HttpStatusCode.Gone, answer.Status);
         Assert.Equal(Problem.ContentType, answer.ContentType);
 
-        // The report itself is still readable -- it is the file that is gone,
-        // not the record of what was issued.
         Assert.Equal(HttpStatusCode.OK, (await ward.ReadAsync(id, ward.NovakToken)).Status);
     }
 
@@ -321,8 +279,6 @@ public class ReportAccessTests
         var id = await ward.IssueAsync(ward.NovakToken, ward.Kovac);
         var client = owned.CreateClient();
 
-        // A guessed URL is not a way in: the file sits behind the same session
-        // everything else does.
         foreach (var route in new[] { Api.Reports, Api.Report(id), Api.Document(id) })
         {
             var answer = await client.AskAsync(route);

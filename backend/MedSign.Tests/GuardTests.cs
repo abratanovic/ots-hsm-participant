@@ -4,11 +4,6 @@ using MedSign.Api.Shared;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// Base64url is not base64: WebAuthn and JWT both reject padding and both reject
-/// '+' and '/'. Every credential id and every token segment on the wire goes
-/// through here, so a slip is a total outage, not a cosmetic one.
-/// </summary>
 public class Base64UrlTests
 {
     [Fact]
@@ -37,16 +32,10 @@ public class Base64UrlTests
     [Fact]
     public void Decodes_a_value_produced_elsewhere()
     {
-        // "MedSign" in base64url, unpadded, as a browser would send it.
         Assert.Equal("MedSign", Encoding.UTF8.GetString(Base64Url.Decode("TWVkU2lnbg")));
     }
 }
 
-/// <summary>
-/// A P-256 public key on the wire is 0x04 followed by X and Y. Storing the raw
-/// PKCS#11 attribute instead -- which is DER-wrapped -- is the classic exercise 2
-/// mistake, and it produces a JWKS that verifies nothing.
-/// </summary>
 public class EcPointTests
 {
     private static byte[] Point(byte first = 0x04) => [first, .. RandomNumberGenerator.GetBytes(64)];

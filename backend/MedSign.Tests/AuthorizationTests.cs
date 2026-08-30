@@ -4,14 +4,6 @@ using MedSign.Api.Shared;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// GET /api/patients -- the first endpoint that reads a session back rather
-/// than handing one out.
-///
-/// A doctor needs somebody to address a report to, and this is where the
-/// frontend's recipient picker comes from. What it must never be is a
-/// directory of everyone with an account.
-/// </summary>
 public class PatientListTests
 {
     private static MedSignHost Clinic(out string doctorToken)
@@ -39,7 +31,6 @@ public class PatientListTests
 
         var patient = answer.Items.Single(p => p.GetProperty("username").GetString() == "m.kovac");
 
-        // The picker shows the name and sends the id, so both have to be here.
         Assert.Equal("Marko Kovač", patient.GetProperty("fullName").GetString());
         Assert.True(patient.GetProperty("id").GetInt32() > 0);
     }
@@ -52,8 +43,6 @@ public class PatientListTests
 
         var answer = await host.CreateClient().AskAsync(Api.Patients, token);
 
-        // A colleague in the picker is a findings report filed against another
-        // doctor's account, one mis-click away.
         Assert.DoesNotContain("i.babic", answer.Raw);
         Assert.DoesNotContain("h.novak", answer.Raw);
         Assert.All(answer.Items, patient =>
@@ -68,8 +57,6 @@ public class PatientListTests
 
         var answer = await host.CreateClient().AskAsync(Api.Patients, host.TokenFor(patient));
 
-        // Not 401: the session is perfectly good, the role is wrong. Answering
-        // this one would hand every patient the clinic's whole roster.
         Assert.Equal(HttpStatusCode.Forbidden, answer.Status);
         Assert.DoesNotContain("m.kovac", answer.Raw);
     }
@@ -88,14 +75,6 @@ public class PatientListTests
     }
 }
 
-/// <summary>
-/// The session itself, exercised through the one endpoint that requires it.
-///
-/// MedSign signs its own tokens with its own key, so a token that verifies is
-/// trusted for what it says. That is only safe if every way of presenting one
-/// MedSign did not issue -- or issued and has since outlived -- is turned down,
-/// which is what these say.
-/// </summary>
 public class SessionTests
 {
     private static (MedSignHost Host, string Token) Signed(int? lifetimeMinutes = null)
@@ -134,15 +113,11 @@ public class SessionTests
         using var host = new MedSignHost();
         var patient = host.Account("m.kovac", Roles.Patient, "Marko Kovač");
 
-        // The promotion a patient would give themselves if the role in a token
-        // were taken at face value.
         var segments = host.TokenFor(patient).Split('.');
         var claims = JsonDocument.Parse(Base64Url.Decode(segments[1])).RootElement
             .EnumerateObject()
             .ToDictionary(claim => claim.Name, claim => (object)claim.Value.Clone());
 
-        // Anyone can read a JWT and anyone can edit one. The signature is the
-        // only reason the role inside it means anything.
         claims["role"] = Roles.Doctor;
 
         var forged = $"{segments[0]}."
@@ -164,8 +139,6 @@ public class SessionTests
         var signature = Base64Url.Decode(segments[2]);
         signature[0] ^= 0xFF;
 
-        // Still 64 bytes of well-formed base64url, so nothing short of the curve
-        // arithmetic can tell this apart from the real thing.
         var answer = await owned.CreateClient()
             .AskAsync(Api.Patients, $"{segments[0]}.{segments[1]}.{Base64Url.Encode(signature)}");
 
@@ -175,8 +148,6 @@ public class SessionTests
     [Fact]
     public async Task Refuses_a_session_that_has_run_out()
     {
-        // Issued with a lifetime that had already elapsed, so this token is
-        // genuinely signed and genuinely expired.
         var (host, token) = Signed(lifetimeMinutes: -1);
         using var owned = host;
 
@@ -192,8 +163,6 @@ public class SessionTests
 
         var answer = await host.CreateClient().AskAsync(Api.Patients);
 
-        // The frontend has one error mapping. A refusal that arrives as an empty
-        // body or an unhandled exception is one it cannot render.
         Assert.Equal(Problem.ContentType, answer.ContentType);
         Assert.Equal(401, answer.Field("status")?.GetInt32());
         Assert.False(string.IsNullOrWhiteSpace(answer.Text("title")));
@@ -206,7 +175,6 @@ public class SessionTests
         using var host = new MedSignHost();
         host.Account("h.novak", Roles.Doctor, "Dr. Helena Novak");
 
-        // You cannot present a session to the endpoints you get one from.
         var registration = await host.CreateClient()
             .PostAsync(Api.RegistrationChallenge, Api.Account("i.babic"));
 
@@ -228,8 +196,6 @@ public class SessionTests
 
         var response = await host.CreateClient().SendAsync(request);
 
-        // The public key set is public. A caller waving a broken token at it is
-        // not a reason to stop answering.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

@@ -70,23 +70,16 @@ public static class MedSignServices
     {
         services.AddSingleton<HsmCommunicator>();
 
-        // The seam the tests substitute: a YubiHSM has no simulator, so without
-        // it nothing that signs a document could be tested at all.
         services.AddSingleton<IDocumentSigner, HsmDocumentSigner>();
         services.AddScoped<DoctorSigningKeys>();
 
         services.AddSingleton<SigningKeyStatus>();
 
-        // Exercise 2 swaps this one line for HsmJwtSigningProvider.
         services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
     }
 
     private static void AddReports(this IServiceCollection services)
     {
-        // QuestPDF refuses to render until it has been told which licence it is
-        // being used under, and it throws when it finds out at the first
-        // render rather than here. MedSign is open source and nowhere near the
-        // revenue threshold, so the Community terms apply.
         QuestPDF.Settings.License = LicenseType.Community;
 
         services.AddSingleton<ReportStorage>();

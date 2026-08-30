@@ -46,10 +46,6 @@ public class ClaimsTests
     }
 }
 
-/// <summary>
-/// The .env provider is exercise 1's "before" picture. It has to actually work --
-/// the point of the exercise is that it works and is still a bad idea.
-/// </summary>
 public class EnvJwtSigningProviderTests
 {
     [Fact]
@@ -96,7 +92,7 @@ public class EnvJwtSigningProviderTests
 
         var signature = provider.SignDigest("k", digest);
 
-        Assert.Equal(64, signature.Length); // Raw R||S, not DER -- JWS requires it.
+        Assert.Equal(64, signature.Length);
         Assert.True(Verify.P256(key.EcPoint, digest, signature));
     }
 
@@ -121,12 +117,6 @@ public class EnvJwtSigningProviderTests
     }
 }
 
-/// <summary>
-/// The JWT MedSign issues has to be a real ES256 token: three segments, a kid the
-/// JWKS can be looked up by, and a signature over exactly the bytes a verifier
-/// will reconstruct. Getting the signing input even one byte wrong still produces
-/// a token that looks fine and verifies nowhere.
-/// </summary>
 public class JwtIssuerTests
 {
     private sealed record Issued(string Token, JwtSigningKey Key);

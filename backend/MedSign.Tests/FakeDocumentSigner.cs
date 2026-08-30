@@ -4,34 +4,10 @@ using MedSign.Api.Hsm;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// The YubiHSM, in software.
-///
-/// It holds P-256 keys by label and signs with them for real, so a test that
-/// says "this report verifies" has been through the same curve arithmetic and
-/// the same R||S encoding the device would produce. Canned signature bytes
-/// would let a genuine bug in digest handling or signature encoding through --
-/// this is the same trick <see cref="VirtualAuthenticator"/> plays for WebAuthn.
-///
-/// What it deliberately does not model is custody: these private keys are
-/// ordinary .NET objects in this process. That property is the one thing only
-/// the hardware has, and no test can assert it.
-/// </summary>
 public sealed class FakeDocumentSigner : IDocumentSigner, IDisposable
 {
-    /// <summary>
-    /// Keys by label, plural on purpose. A label is not a primary key on the
-    /// device: generating twice under one leaves two objects behind, and the
-    /// failure shows up on the next lookup rather than at the second create.
-    /// Modelling that is what makes "re-adopt, do not regenerate" testable --
-    /// a fake that quietly returned the first key would pass either way.
-    /// </summary>
     private readonly ConcurrentDictionary<string, List<ECDsa>> _keys = new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// Unplugs it. Every operation then fails the way a missing Connector does,
-    /// which is how the tests reach the device-unavailable path.
-    /// </summary>
     public bool Unavailable { get; set; }
 
     public byte[]? FindKey(string label)
@@ -59,11 +35,9 @@ public sealed class FakeDocumentSigner : IDocumentSigner, IDisposable
         var key = FindOne(label)
             ?? throw new HsmUnavailableException($"No key labelled {label} on this device.");
 
-        // Raw R||S, not DER -- what the device returns and what the verifier expects.
         return key.SignHash(digest, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
     }
 
-    /// <summary>Mirrors the communicator: a label has to name exactly one object.</summary>
     private ECDsa? FindOne(string label)
     {
         if (!_keys.TryGetValue(label, out var held))

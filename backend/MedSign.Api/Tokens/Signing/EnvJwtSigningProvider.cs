@@ -3,14 +3,6 @@ using MedSign.Api.Shared;
 
 namespace MedSign.Api.Tokens;
 
-/// <summary>
-/// Exercise 1's "before" picture: the JWT signing key as a base64 PKCS#8 blob in an
-/// environment variable, which docker-compose.yml pins and .env can override.
-///
-/// It works, and it is still a bad idea. The private key is readable by anything that
-/// can read the process environment, it is committed to this repository in plain sight,
-/// and every participant on this workshop is signing with the same one.
-/// </summary>
 public sealed class EnvJwtSigningProvider(IConfiguration configuration, TimeProvider clock) : IJwtSigningProvider
 {
     public const string KeyVariable = "MEDSIGN_JWT_SIGNING_KEY";

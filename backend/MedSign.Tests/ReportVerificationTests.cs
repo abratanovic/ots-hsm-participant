@@ -6,29 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// GET /api/reports/{id}/verification.
-///
-/// The payoff of the whole feature, and the one question a signed document
-/// exists to answer: did this doctor write this, and has anyone changed it
-/// since. MedSign answers it by re-reading the file from disk and re-checking
-/// the stored signature against the stored public point every single time --
-/// never from a cache, because a cached answer describes a file that may no
-/// longer be there.
-///
-/// It answers specifically rather than with a bare yes or no, and every one of
-/// the five outcomes below is reached by manipulating real state: an untouched
-/// file, bytes rewritten on disk, the file deleted, the signature altered in
-/// the database, the key row removed. A stub agreeing with itself would prove
-/// none of it.
-/// </summary>
 public class ReportVerificationTests
 {
-    /// <summary>
-    /// A doctor with signing enabled, a patient, a stranger on each side, and
-    /// one issued report -- all of it produced through the endpoints, so what
-    /// these tests check is what the application itself wrote.
-    /// </summary>
     private static async Task<Case> CaseAsync()
     {
         var host = new MedSignHost();
@@ -70,13 +49,10 @@ public class ReportVerificationTests
         public Task<Answer> VerifyAsync(string? token = null) =>
             Host.CreateClient().AskAsync(Api.Verification(ReportId), token ?? DoctorToken);
 
-        /// <summary>The outcome MedSign gives right now, having asserted it answered at all.</summary>
         public async Task<string?> OutcomeAsync(string? token = null)
         {
             var answer = await VerifyAsync(token);
 
-            // 200 in every case, including the ones that say "not genuine":
-            // that is a successful answer to the question asked.
             Assert.Equal(HttpStatusCode.OK, answer.Status);
 
             return answer.Text("outcome");
@@ -94,17 +70,12 @@ public class ReportVerificationTests
         Assert.Equal(HttpStatusCode.OK, answer.Status);
         Assert.Equal(VerificationOutcomes.Valid, answer.Text("outcome"));
 
-        // A positive answer names a person. "Valid" on its own says a signature
-        // checked out against something; this says whose key it was.
         Assert.Equal("Dr. Helena Novak", answer.Field("doctor")?.GetProperty("name").GetString());
         Assert.Equal("h.novak", answer.Field("doctor")?.GetProperty("username").GetString());
         Assert.Equal(SignatureView.Es256, answer.Text("algorithm"));
 
-        // Which key, though, stays inside MedSign: the answer is about a person
-        // and a file, and the label the device knows the key by is neither.
         Assert.DoesNotContain(DoctorKeyLabel.For(subject.Doctor.Id), answer.Raw);
 
-        // When the check happened, because the answer is only about that moment.
         Assert.True(answer.Field("checkedAt")?.TryGetDateTimeOffset(out _) ?? false,
             $"The answer carries no checkedAt:\n{answer.Raw}");
 
@@ -117,8 +88,6 @@ public class ReportVerificationTests
         var subject = await CaseAsync();
         using var owned = subject.Host;
 
-        // The patient is who this matters most to: they hold a document and
-        // want to know whether their doctor really wrote it.
         Assert.Equal(VerificationOutcomes.Valid, await subject.OutcomeAsync(subject.PatientToken));
         Assert.Equal(VerificationOutcomes.Valid, await subject.OutcomeAsync(subject.DoctorToken));
     }
@@ -132,8 +101,6 @@ public class ReportVerificationTests
         var pdf = await File.ReadAllBytesAsync(
             subject.DocumentPath, TestContext.Current.CancellationToken);
 
-        // One byte, in a real file on a real disk. This is the outcome the
-        // stored hash exists to make distinguishable at all.
         pdf[^1] ^= 0xFF;
 
         await File.WriteAllBytesAsync(
@@ -150,13 +117,8 @@ public class ReportVerificationTests
 
         File.Delete(subject.DocumentPath);
 
-        // An operational problem, said as one. A patient whose file has been
-        // lost has not been handed a forged report, and must not be told so.
         Assert.Equal(VerificationOutcomes.FileMissing, await subject.OutcomeAsync());
 
-        // And nothing re-rendered it to have something to check: a regenerated
-        // PDF is byte-different, so its signature would not verify -- checking
-        // one would destroy the very claim being checked.
         Assert.False(File.Exists(subject.DocumentPath),
             "Verification regenerated the document it was asked to check.");
     }
@@ -175,8 +137,6 @@ public class ReportVerificationTests
             .Where(report => report.PublicId == reportId)
             .ExecuteUpdate(set => set.SetProperty(report => report.Signature, tampered)));
 
-        // The file is untouched and hashes as recorded; it is the signature
-        // itself that no longer verifies against the doctor's key.
         Assert.Equal(VerificationOutcomes.SignatureInvalid, await subject.OutcomeAsync());
     }
 
@@ -188,16 +148,6 @@ public class ReportVerificationTests
 
         owned.Read(db =>
         {
-            // The report still names the key it was signed with; the row that
-            // held the public half is what has gone.
-            //
-            // The connection is opened by hand for both statements. PRAGMA
-            // foreign_keys is a property of one connection, and EF otherwise
-            // opens and closes one per command -- so under the parallelism of a
-            // full suite run the DELETE could be handed a connection the PRAGMA
-            // had never reached, and fail on the foreign key this is switching
-            // off. Holding the connection open makes the two statements
-            // provably the same conversation.
             db.Database.OpenConnection();
 
             try
@@ -212,16 +162,11 @@ public class ReportVerificationTests
             }
         });
 
-        // Not "invalid". Nothing about the document has changed -- MedSign
-        // simply no longer holds the public half it would need to check it, and
-        // "invalid" would accuse a doctor of something they did not do.
         var answer = await subject.VerifyAsync();
 
         Assert.Equal(HttpStatusCode.OK, answer.Status);
         Assert.Equal(VerificationOutcomes.UnknownSigner, answer.Text("outcome"));
 
-        // The report is still a report and the doctor is still named; it is
-        // only the key that cannot be found.
         Assert.Equal("Dr. Helena Novak", answer.Field("doctor")?.GetProperty("name").GetString());
     }
 
@@ -231,9 +176,6 @@ public class ReportVerificationTests
         var subject = await CaseAsync();
         using var owned = subject.Host;
 
-        // The public half MedSign is checking against is the public half of a
-        // key the device is really holding -- not a value the application made
-        // up and then agreed with.
         var key = owned.Read(db => db.SigningKeys.Single());
 
         Assert.Equal(key.PublicKeyPoint, owned.Hsm.FindKey(key.KeyLabel));
@@ -242,10 +184,6 @@ public class ReportVerificationTests
         var digest = SHA256.HashData(await File.ReadAllBytesAsync(
             subject.DocumentPath, TestContext.Current.CancellationToken));
 
-        // A real P-256 signature, over the right digest, in the right encoding
-        // -- made by somebody else's key. Nothing about its shape is wrong, so
-        // only genuine curve arithmetic against this doctor's stored point can
-        // tell it apart from the real one.
         owned.Hsm.CreateKey("another-doctors-key");
 
         var impostor = owned.Hsm.SignDigest("another-doctors-key", digest);
@@ -278,8 +216,6 @@ public class ReportVerificationTests
         await File.WriteAllBytesAsync(
             subject.DocumentPath, pdf, TestContext.Current.CancellationToken);
 
-        // Valid again, because the answer is about the file as it is now and
-        // nothing was remembered from either of the calls before it.
         Assert.Equal(VerificationOutcomes.Valid, await subject.OutcomeAsync());
     }
 
@@ -295,8 +231,6 @@ public class ReportVerificationTests
         await subject.OutcomeAsync();
         await subject.OutcomeAsync();
 
-        // A GET, because asking whether a document is genuine changes nothing
-        // about it -- least of all the bytes whose digest was signed.
         Assert.Equal(before, await File.ReadAllBytesAsync(
             subject.DocumentPath, TestContext.Current.CancellationToken));
     }
@@ -311,8 +245,6 @@ public class ReportVerificationTests
         {
             var answer = await subject.VerifyAsync(stranger);
 
-            // The same 404 the other single-report routes give, and for the
-            // same reason: a 403 would confirm this patient has records.
             Assert.Equal(HttpStatusCode.NotFound, answer.Status);
             Assert.Equal(Problem.ContentType, answer.ContentType);
             Assert.DoesNotContain("Kovač", answer.Raw);
@@ -337,7 +269,6 @@ public class ReportVerificationTests
         Assert.Equal(Problem.ContentType, answer.ContentType);
     }
 
-    /// <summary>The stored signature with one byte flipped: still 64 bytes, still ES256, no longer this doctor's.</summary>
     private static byte[] Tampered(byte[] signature) =>
         [.. signature[..^1], (byte)(signature[^1] ^ 0xFF)];
 }

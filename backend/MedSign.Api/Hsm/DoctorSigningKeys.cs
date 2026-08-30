@@ -4,13 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace MedSign.Api.Hsm;
 
-/// <summary>
-/// Enrolment: getting a doctor a document signing key on the device, and
-/// answering whether they have one.
-///
-/// Enabling is idempotent in two layers, because there are two places the
-/// answer can already be yes -- the database, and the device.
-/// </summary>
 public sealed class DoctorSigningKeys(
     MedSignDb db,
     IDocumentSigner signer,
@@ -57,17 +50,6 @@ public sealed class DoctorSigningKeys(
         return key;
     }
 
-    /// <summary>
-    /// The key the device is already holding under this label, or a new one.
-    ///
-    /// Re-adopting rather than regenerating is what makes enabling safe to
-    /// repeat, and it has a consequence worth stating: this ticket ships its
-    /// schema change by deleting the database file, so the first doctor to
-    /// enable signing afterwards silently picks their orphaned key back up off
-    /// the device. That is wanted. Generating a second key instead would leave
-    /// the first one on the device forever with nothing pointing at it, and
-    /// would make every report signed before the reset unverifiable.
-    /// </summary>
     private SigningKey Provision(string label)
     {
         var adopted = signer.FindKey(label);

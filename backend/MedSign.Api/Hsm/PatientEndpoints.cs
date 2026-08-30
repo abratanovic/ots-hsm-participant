@@ -4,13 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Api.Hsm;
 
-/// <summary>
-/// Who a doctor may address a report to.
-///
-/// Doctors are left out deliberately rather than incidentally: the list is what
-/// the frontend's recipient picker is built from, and a doctor in it is an
-/// invitation to file somebody's findings against a colleague's account.
-/// </summary>
 public static class PatientEndpoints
 {
     public static void MapPatientEndpoints(this IEndpointRouteBuilder app)

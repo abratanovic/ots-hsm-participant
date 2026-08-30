@@ -5,13 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Tests;
 
-/// <summary>
-/// Exercise 2 -- POST /api/auth/registration-challenge.
-///
-/// The ceremony method decides what MedSign asks the authenticator for. This
-/// endpoint decides who is allowed to ask, and gets the answer onto the wire in
-/// a shape the browser's WebAuthn call will accept.
-/// </summary>
 public class ExerciseTwoRegistrationChallengeTests
 {
     private const string Username = "h.novak";
@@ -26,9 +19,6 @@ public class ExerciseTwoRegistrationChallengeTests
 
         Assert.Equal(HttpStatusCode.OK, answer.Status);
 
-        // Binary has to arrive as base64url -- navigator.credentials.create cannot
-        // read anything else, and a byte array serialised as JSON numbers is the
-        // usual way this goes wrong.
         Assert.Equal(32, answer.Bytes("challenge").Length);
         Assert.Equal(Lab.RpId, answer.Field("rp")?.GetProperty("id").GetString());
         Assert.Equal(Username, answer.Field("user")?.GetProperty("name").GetString());
@@ -47,8 +37,6 @@ public class ExerciseTwoRegistrationChallengeTests
         var answer = (await host.CreateClient()
             .PostAsync(Api.RegistrationChallenge, Api.Account(Username))).OrSkip();
 
-        // Handing out a ceremony here would let the sign-up form answer "does this
-        // doctor already have an account?" for anyone who asks.
         Assert.Equal(HttpStatusCode.Conflict, answer.Status);
     }
 
@@ -68,18 +56,10 @@ public class ExerciseTwoRegistrationChallengeTests
     }
 }
 
-/// <summary>
-/// Exercise 4 -- POST /api/auth/registration.
-///
-/// A real authenticator answers the ceremony this endpoint handed out, so what
-/// is verified here is verified for real, and what ends up in the database is
-/// what a later sign-in will have to work from.
-/// </summary>
 public class ExerciseFourRegistrationTests
 {
     private const string Username = "h.novak";
 
-    /// <summary>Asks for a ceremony and answers it, the way the browser would.</summary>
     private static async Task<(Answer Ceremony, PasskeyRegistration Answer)> AnswerAsync(
         MedSignHost host, VirtualAuthenticator key, string username = Username)
     {
@@ -109,8 +89,6 @@ public class ExerciseFourRegistrationTests
         Assert.Equal(key.CredentialId, stored.Credentials.Single().CredentialId);
         Assert.Equal(key.PublicKeyPoint, stored.Credentials.Single().PublicKeyPoint);
 
-        // The account is found by this handle on every later sign-in, so it has to
-        // be the one the ceremony invented rather than anything off the wire.
         Assert.Equal(ceremony.Bytes2("user", "id"), stored.Handle);
     }
 
@@ -126,8 +104,6 @@ public class ExerciseFourRegistrationTests
 
         var stored = host.Read(db => db.Users.Include(u => u.Credentials).Single().Credentials.Single());
 
-        // The same check the endpoint runs, so a failure reads like the error a
-        // participant would hit rather than a byte comparison.
         Assert.Null(PasskeyDiagnostics.DiagnoseRegistration(
             new VerifiedCredential(stored.CredentialId, stored.PublicKeyPoint, (uint)stored.SignCount)));
     }
@@ -138,8 +114,6 @@ public class ExerciseFourRegistrationTests
         using var host = new MedSignHost();
         using var key = new VirtualAuthenticator();
 
-        // Somebody else enrolled this authenticator already. Only MedSign knows
-        // that; the library has to be told to ask.
         host.Enrol(key, "m.kovac");
 
         var (_, answer) = await AnswerAsync(host, key);
@@ -160,8 +134,6 @@ public class ExerciseFourRegistrationTests
 
         var (_, answer) = await AnswerAsync(host, key);
 
-        // The check on the challenge endpoint is not enough on its own: two people
-        // can hold a ceremony for the same username at once.
         host.Enrol(other, Username);
 
         var session = (await host.CreateClient()
@@ -204,13 +176,6 @@ public class ExerciseFourRegistrationTests
     }
 }
 
-/// <summary>
-/// Exercise 6 -- POST /api/auth/sign-in-challenge.
-///
-/// This endpoint is asked a username by anyone who can reach it, so what it
-/// gives back has to be useful to the person holding the passkey and useless to
-/// everybody else.
-/// </summary>
 public class ExerciseSixSignInChallengeTests
 {
     [Fact]
@@ -240,8 +205,6 @@ public class ExerciseSixSignInChallengeTests
         var known = (await client.PostAsync(Api.SignInChallenge, new { username = account.Username })).OrSkip();
         var unknown = (await client.PostAsync(Api.SignInChallenge, new { username = "nobody.here" })).OrSkip();
 
-        // Refusing here would turn the sign-in page into a way to ask which doctors
-        // have accounts. A challenge comes back either way.
         Assert.Equal(known.Status, unknown.Status);
         Assert.Equal(32, unknown.Bytes("challenge").Length);
         Assert.DoesNotContain(Base64Url.Encode(key.CredentialId), unknown.Raw);
@@ -262,16 +225,8 @@ public class ExerciseSixSignInChallengeTests
     }
 }
 
-/// <summary>
-/// Exercise 8 -- POST /api/auth/sign-in.
-///
-/// The last step, and the one that hands out a session. Everything the ceremony
-/// method verified is only worth something if this endpoint acts on it: the new
-/// counter has to survive the request, and a refusal must not say why.
-/// </summary>
 public class ExerciseEightSignInTests
 {
-    /// <summary>Asks for a ceremony and signs it, the way the browser would.</summary>
     private static async Task<PasskeyAssertion> AnswerAsync(
         MedSignHost host, VirtualAuthenticator key, string username, byte[]? handle)
     {
@@ -309,8 +264,6 @@ public class ExerciseEightSignInTests
 
         (await host.CreateClient().PostAsync(Api.SignIn, Api.SignIn_(account.Username, assertion))).OrSkip();
 
-        // A counter that is never written back is a clone check that never fires:
-        // the stored value stays at 0 and every replayed assertion clears it.
         Assert.Equal(key.SignCount, (uint)host.Read(
             db => db.Users.Include(u => u.Credentials).Single().Credentials.Single().SignCount));
     }
@@ -368,10 +321,6 @@ public class ExerciseEightSignInTests
             await client.PostAsync(Api.SignIn, Api.SignIn_(account.Username, noCeremony)),
         };
 
-        // A credential MedSign has never seen, an account that does not exist, and
-        // an answer to no ceremony at all. Told apart from the outside, these say
-        // which usernames are real and which passkeys MedSign knows -- so all three
-        // get one answer, and it carries no detail.
         foreach (var refusal in refusals)
         {
             Assert.Equal(HttpStatusCode.Unauthorized, refusal.OrSkip().Status);
