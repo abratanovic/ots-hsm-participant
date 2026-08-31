@@ -71,6 +71,9 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
         {
             services.RemoveAll<IDocumentSigner>();
             services.AddSingleton<IDocumentSigner>(Hsm);
+
+            services.RemoveAll<IJwtSigningProvider>();
+            services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
         });
     }
 

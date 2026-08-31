@@ -76,7 +76,7 @@ public static class MedSignServices
 
         services.AddSingleton<SigningKeyStatus>();
 
-        services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
+        services.AddSingleton<IJwtSigningProvider, HsmJwtSigningProvider>();
     }
 
     private static void AddReports(this IServiceCollection services)

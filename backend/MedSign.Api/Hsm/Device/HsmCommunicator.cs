@@ -13,7 +13,6 @@ public sealed class HsmCommunicator : IDisposable
     private readonly Lock _gate = new();
 
     private IPkcs11Library? _library;
-    private ISession? _session;
     private bool _disposed;
 
     public HsmCommunicator(IOptions<HsmOptions> options, ILogger<HsmCommunicator> log)
@@ -52,7 +51,7 @@ public sealed class HsmCommunicator : IDisposable
         // from _factories.MechanismFactory, and hand the public key handle it
         // gives you to ReadPoint(). Log what you generated; a key appearing on
         // the device unannounced is hard to explain later.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L30-L64
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L29-L63
         throw new NotImplementedException(
             "Exercise HSM 5/10: generate the key pair in HsmCommunicator.CreateKey.");
     }
@@ -67,7 +66,7 @@ public sealed class HsmCommunicator : IDisposable
         // GetKey(label) ?? CreateKey(label), so a null that should have been a
         // handle silently provisions a second key -- and every token signed by
         // the first one stops verifying.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L66-L71
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L65-L69
         throw new NotImplementedException(
             "Exercise HSM 4/10: look the public key up in HsmCommunicator.GetKey.");
     }
@@ -88,7 +87,7 @@ public sealed class HsmCommunicator : IDisposable
         // recorded this key as provisioned, so throw HsmUnavailableException and
         // say so; restarting will provision a new key and invalidate every token
         // the old one signed.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L73-L82
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L72-L81
         throw new NotImplementedException(
             "Exercise HSM 6/10: sign the digest in HsmCommunicator.SignDigest.");
     }
@@ -108,7 +107,7 @@ public sealed class HsmCommunicator : IDisposable
         // recoverable by guessing: MedSign addresses its key by label, so throw
         // HsmUnavailableException and tell the reader to delete the duplicates
         // with yubihsm-shell.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L84-L101
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L83-L100
         throw new NotImplementedException(
             "Exercise HSM 2/10: search the device by template in HsmCommunicator.FindOne.");
     }
@@ -127,7 +126,7 @@ public sealed class HsmCommunicator : IDisposable
         // with both, so run the bytes through it. Then call
         // EcPoint.EnsureUncompressedP256() so a wrong shape fails here, at the
         // device boundary, instead of much later as an unverifiable signature.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L103-L111
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L102-L110
         throw new NotImplementedException(
             "Exercise HSM 3/10: read the public point in HsmCommunicator.ReadPoint.");
     }
@@ -144,76 +143,100 @@ public sealed class HsmCommunicator : IDisposable
 
     private T Execute<T>(Func<ISession, T> work)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var session = OpenSession();
+
+        try
+        {
+            return work(session);
+        }
+        finally
+        {
+            Close(session);
+        }
+    }
+
+    private ISession OpenSession()
+    {
+        // TODO HSM 1/10: Return a session that is open and logged in, freshly,
+        // for one operation. Start here -- nothing else in this class runs until
+        // it works. Close() below is the other half of the exercise.
+        //
+        // Every call gets its own session: MedSign signs for many participants
+        // at once, and a session cached in a field would have to be serialised
+        // behind a lock. The device allows 16 at a time, which is what makes
+        // closing them promptly -- Close(), in Execute's finally -- the price of
+        // opening them freely.
+        //
+        // In order:
+        //
+        //   1. Refuse to continue without a PIN from _options.ResolvePin().
+        //      Throw HsmUnavailableException saying so -- the PIN is your
+        //      Authentication Key id as 4 lowercase hex digits followed by the
+        //      password, e.g. 1001<password>, and there is no default.
+        //   2. Library().GetSlotList(SlotsType.WithTokenPresent) and take the
+        //      first. An empty list means the Connector is not running or is not
+        //      at the address in yubihsm_pkcs11.conf; say that.
+        //   3. slot.OpenSession(SessionType.ReadWrite) -- a read-only session
+        //      cannot generate keys.
+        //   4. session.Login(CKU.CKU_USER, pin). Dispose the session and rethrow
+        //      as HsmUnavailableException(LoginAdvice(ex), ex) when it fails; a
+        //      session left open on a failed login is one of the 16 you cannot
+        //      get back.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L138-L166
+        throw new NotImplementedException(
+            "Exercise HSM 1/10: open and log in to the session in HsmCommunicator.OpenSession.");
+    }
+
+    private static void Close(ISession session)
+    {
+        // TODO HSM 1/10, second half: Give this session back to the device.
+        //
+        // Log out, then dispose. A logout that throws Pkcs11Exception is not
+        // worth propagating -- the session is being closed either way, and a
+        // failed logout usually means the device had already reclaimed it -- so
+        // swallow that one and dispose regardless.
+        //
+        // Execute calls this in a finally, so it runs even when the work threw.
+        // Leaving it unimplemented is survivable for a single participant, since
+        // the device reclaims idle sessions after about 30 seconds. It is not
+        // survivable for a room of them: you will meet CKR_SESSION_COUNT and the
+        // 16-session limit within a minute.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L168-L180
+        throw new NotImplementedException(
+            "Exercise HSM 1/10: close the session in HsmCommunicator.Close.");
+    }
+
+    private IPkcs11Library Library()
+    {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            try
+            if (_library is not null)
             {
-                return work(Connect());
+                return _library;
             }
-            catch (Pkcs11Exception ex) when (IsRecoverable(ex))
+
+            if (_options.ModulePath is not { Length: > 0 })
             {
-                _log.LogWarning("HSM session was not usable ({Rv}); reconnecting and retrying once.", ex.RV);
-                Reset();
-                return work(Connect());
+                throw new HsmUnavailableException("Hsm:ModulePath is not configured.");
             }
+
+            if (!File.Exists(_options.ModulePath))
+            {
+                throw new HsmUnavailableException($"PKCS#11 module not found at {_options.ModulePath}.");
+            }
+
+            _library = _factories.Pkcs11LibraryFactory.LoadPkcs11Library(
+                _factories, _options.ModulePath, AppType.MultiThreaded);
+
+            _log.LogInformation("Loaded the PKCS#11 module at {Module}.", _options.ModulePath);
+
+            return _library;
         }
     }
-
-    private ISession Connect()
-    {
-        // TODO HSM 1/10: Return a logged-in session, opening one if this instance
-        // is not already holding it. Start here -- nothing else in this class
-        // runs until it works.
-        //
-        // In order:
-        //
-        //   1. Return the cached _session when there is one. Every call opening
-        //      its own session burns through the device's 16 in seconds.
-        //   2. Refuse to continue without an _options.ModulePath that exists on
-        //      disk, and without a PIN from _options.ResolvePin(). Throw
-        //      HsmUnavailableException saying which is missing -- the PIN is
-        //      your Authentication Key id as 4 lowercase hex digits followed by
-        //      the password, e.g. 1001<password>, and there is no default.
-        //   3. _factories.Pkcs11LibraryFactory.LoadPkcs11Library(_factories,
-        //      path, AppType.MultiThreaded), assigned with ??= -- the native
-        //      library is loaded once per process, not once per session.
-        //   4. _library.GetSlotList(SlotsType.WithTokenPresent) and take the
-        //      first. An empty list means the Connector is not running or is not
-        //      at the address in yubihsm_pkcs11.conf; say that.
-        //   5. slot.OpenSession(SessionType.ReadWrite) -- a read-only session
-        //      cannot generate keys.
-        //   6. session.Login(CKU.CKU_USER, pin). Dispose the session and rethrow
-        //      as HsmUnavailableException(LoginAdvice(ex), ex) when it fails; a
-        //      session left open on a failed login is a session you cannot get
-        //      back.
-        //   7. Log slot.GetTokenInfo() label and serial, cache the session in
-        //      _session, return it.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L142-L193
-        throw new NotImplementedException(
-            "Exercise HSM 1/10: open and log in to the session in HsmCommunicator.Connect.");
-    }
-
-    private void Reset()
-    {
-        try
-        {
-            _session?.Logout();
-        }
-        catch (Pkcs11Exception)
-        {
-        }
-
-        _session?.Dispose();
-        _session = null;
-    }
-
-    private static bool IsRecoverable(Pkcs11Exception ex) => ex.RV is
-        CKR.CKR_SESSION_HANDLE_INVALID or
-        CKR.CKR_SESSION_CLOSED or
-        CKR.CKR_USER_NOT_LOGGED_IN or
-        CKR.CKR_DEVICE_ERROR;
 
     private static string LoginAdvice(Pkcs11Exception ex) => ex.RV switch
     {
@@ -230,15 +253,15 @@ public sealed class HsmCommunicator : IDisposable
     {
         // TODO HSM 7/10: Give the device back what this instance is holding.
         //
-        // Under _gate, and only once: return early if _disposed is already set,
-        // Reset() the session, dispose and null _library, then set _disposed --
-        // which is what makes Execute's ObjectDisposedException guard fire
-        // instead of a native crash.
+        // Sessions are Close()d as they finish, so what is left here is the
+        // native library. Under _gate, and only once: return early if _disposed
+        // is already set, dispose and null _library, then set _disposed -- which
+        // is what makes the ObjectDisposedException guards in Execute and
+        // Library() fire instead of a native crash.
         //
-        // Leaving this empty is survivable, which is why it does not throw: the
-        // device reclaims idle sessions after about 30 seconds. Leaving it empty
-        // while restarting the backend repeatedly is not -- you will meet
-        // CKR_SESSION_COUNT and the 16-session limit above.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L226-L240
+        // Leaving this empty is survivable, which is why it does not throw. It
+        // still leaks a loaded PKCS#11 module on every host restart, and the
+        // sessions those hosts opened count against the device's 16.
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L223-L236
     }
 }
