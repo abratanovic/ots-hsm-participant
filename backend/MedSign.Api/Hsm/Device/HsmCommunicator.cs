@@ -13,7 +13,6 @@ public sealed class HsmCommunicator : IDisposable
     private readonly Lock _gate = new();
 
     private IPkcs11Library? _library;
-    private ISession? _session;
     private bool _disposed;
 
     public HsmCommunicator(IOptions<HsmOptions> options, ILogger<HsmCommunicator> log)
@@ -122,40 +121,22 @@ public sealed class HsmCommunicator : IDisposable
 
     private T Execute<T>(Func<ISession, T> work)
     {
-        lock (_gate)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
-            try
-            {
-                return work(Connect());
-            }
-            catch (Pkcs11Exception ex) when (IsRecoverable(ex))
-            {
-                _log.LogWarning("HSM session was not usable ({Rv}); reconnecting and retrying once.", ex.RV);
-                Reset();
-                return work(Connect());
-            }
+        var session = OpenSession();
+
+        try
+        {
+            return work(session);
+        }
+        finally
+        {
+            Close(session);
         }
     }
 
-    private ISession Connect()
+    private ISession OpenSession()
     {
-        if (_session is not null)
-        {
-            return _session;
-        }
-
-        if (_options.ModulePath is not { Length: > 0 })
-        {
-            throw new HsmUnavailableException("Hsm:ModulePath is not configured.");
-        }
-
-        if (!File.Exists(_options.ModulePath))
-        {
-            throw new HsmUnavailableException($"PKCS#11 module not found at {_options.ModulePath}.");
-        }
-
         var pin = _options.ResolvePin();
         if (pin is not { Length: > 0 })
         {
@@ -164,10 +145,7 @@ public sealed class HsmCommunicator : IDisposable
                 + "followed by your password, e.g. 1001<password>. There is no factory key to fall back on.");
         }
 
-        _library ??= _factories.Pkcs11LibraryFactory.LoadPkcs11Library(
-            _factories, _options.ModulePath, AppType.MultiThreaded);
-
-        var slot = _library.GetSlotList(SlotsType.WithTokenPresent).FirstOrDefault()
+        var slot = Library().GetSlotList(SlotsType.WithTokenPresent).FirstOrDefault()
             ?? throw new HsmUnavailableException(
                 "No slot with a token present. Is the Connector running and reachable at the address "
                 + "in yubihsm_pkcs11.conf?");
@@ -184,33 +162,52 @@ public sealed class HsmCommunicator : IDisposable
             throw new HsmUnavailableException(LoginAdvice(ex), ex);
         }
 
-        var token = slot.GetTokenInfo();
-        _log.LogInformation("HSM session open on {Token} (serial {Serial}).",
-            token.Label.Trim(), token.SerialNumber.Trim());
-
-        _session = session;
         return session;
     }
 
-    private void Reset()
+    private static void Close(ISession session)
     {
         try
         {
-            _session?.Logout();
+            session.Logout();
         }
         catch (Pkcs11Exception)
         {
+            // The session is being closed either way; a failed logout says it was already gone.
         }
 
-        _session?.Dispose();
-        _session = null;
+        session.Dispose();
     }
 
-    private static bool IsRecoverable(Pkcs11Exception ex) => ex.RV is
-        CKR.CKR_SESSION_HANDLE_INVALID or
-        CKR.CKR_SESSION_CLOSED or
-        CKR.CKR_USER_NOT_LOGGED_IN or
-        CKR.CKR_DEVICE_ERROR;
+    private IPkcs11Library Library()
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            if (_library is not null)
+            {
+                return _library;
+            }
+
+            if (_options.ModulePath is not { Length: > 0 })
+            {
+                throw new HsmUnavailableException("Hsm:ModulePath is not configured.");
+            }
+
+            if (!File.Exists(_options.ModulePath))
+            {
+                throw new HsmUnavailableException($"PKCS#11 module not found at {_options.ModulePath}.");
+            }
+
+            _library = _factories.Pkcs11LibraryFactory.LoadPkcs11Library(
+                _factories, _options.ModulePath, AppType.MultiThreaded);
+
+            _log.LogInformation("Loaded the PKCS#11 module at {Module}.", _options.ModulePath);
+
+            return _library;
+        }
+    }
 
     private static string LoginAdvice(Pkcs11Exception ex) => ex.RV switch
     {
@@ -232,7 +229,6 @@ public sealed class HsmCommunicator : IDisposable
                 return;
             }
 
-            Reset();
             _library?.Dispose();
             _library = null;
             _disposed = true;
