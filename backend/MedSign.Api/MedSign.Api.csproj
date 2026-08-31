@@ -14,6 +14,10 @@
          registered by hand in Program.cs from the existing Passkey section, so
          there is one source of truth for the RP ID and the origins. -->
     <PackageReference Include="Fido2" Version="4.0.1" />
+    <!-- The cloud half of the signing story. Only KmsCommunicator references it:
+         everything above IDocumentSigner and IJwtSigningProvider is unaware that
+         a second provider exists, which is the point being demonstrated. -->
+    <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.100.11" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Pkcs11Interop" Version="5.3.0" />

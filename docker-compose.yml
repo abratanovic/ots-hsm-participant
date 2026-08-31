@@ -51,6 +51,31 @@ services:
       Hsm__KeyLabel: medsign-jwt-signing
       MEDSIGN_HSM_PIN: ${MEDSIGN_HSM_PIN:-}
 
+      # ---- Signing backend -----------------------------------------------
+      # 'hsm' is the workshop: both keys on the device you are holding. 'env'
+      # takes the JWT key from the variable below instead, which is the state
+      # exercise 1 argues against. 'kms' swaps both for AWS KMS without changing a line of MedSign's
+      # own code, which is the point of the demonstration -- and it does nothing
+      # without credentials, so it is inert for everyone who has none.
+      Signing__Provider: ${SIGNING_PROVIDER:-hsm}
+
+      Kms__Region: ${AWS_REGION:-}
+      Kms__KeyId: ${AWS_KMS_KEY_ID:-}
+      Kms__AllowKeyCreation: ${KMS_ALLOW_KEY_CREATION:-false}
+
+      # Read by the AWS SDK's own credential chain. Presenter only; never
+      # committed. Contrast with MEDSIGN_JWT_SIGNING_KEY below, which IS
+      # committed on purpose -- exercise 1 is about being able to read it.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-}
+
+      # There is no instance metadata service in Docker Desktop. Without this the
+      # SDK probes 169.254.169.254 on the first call and waits for it to time
+      # out -- seconds of dead air, exactly once, in the middle of a demo.
+      AWS_EC2_METADATA_DISABLED: "true"
+
       # ---- Passkeys (WebAuthn) -------------------------------------------
       Passkey__RpId: ${PASSKEY_RP_ID:-localhost}
       Passkey__RpName: MedSign Cloud
