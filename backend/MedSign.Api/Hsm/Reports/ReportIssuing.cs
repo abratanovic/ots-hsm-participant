@@ -27,7 +27,7 @@ public sealed class ReportIssuing(
 {
     public MedicalReport Issue(int doctorUserId, IssueReport request)
     {
-        // TODO HSM 8/10: Render the report to a PDF, sign it on the HSM, and
+        // TODO HSM 7/8: Render the report to a PDF, sign it on the HSM, and
         // store the row that lets anyone verify it later.
         //
         // Validate first, with the Read* helpers below: ReadType(request.Type),

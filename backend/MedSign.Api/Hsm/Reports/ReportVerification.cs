@@ -13,7 +13,7 @@ public sealed class ReportVerification(
     public async Task<VerificationView> CheckAsync(
         SessionPrincipal caller, Guid id, CancellationToken cancellationToken)
     {
-        // TODO HSM 10/10: Answer this caller's question about report {id}.
+        // TODO HSM 9/9: Answer this caller's question about report {id}.
         //
         // Find the report through reports.FindAsync(caller, id, ...) rather than
         // querying db yourself. That method is what makes a report invisible to
@@ -37,7 +37,7 @@ public sealed class ReportVerification(
 
     private string Check(MedicalReport report, SigningKey? key)
     {
-        // TODO HSM 9/10: Decide which of the five VerificationOutcomes this
+        // TODO HSM 8/8: Decide which of the five VerificationOutcomes this
         // report deserves, and return it. This is the counterpart of what
         // ReportIssuing recorded, so read Exercise HSM 8/10 first -- everything
         // you check here, issuing had to store.
