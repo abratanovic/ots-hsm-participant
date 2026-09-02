@@ -71,4 +71,37 @@ public class KmsLiveTests
             "AWS KMS signed the digest, but the signature does not verify against the key it "
             + "published. That is the DER-to-r||s conversion, not the service.");
     }
+
+    [Fact]
+    public void Serves_the_document_signer_the_report_pipeline_uses()
+    {
+        if (Configured() is not { } settings)
+        {
+            Assert.Skip("Set AWS_REGION and AWS_KMS_KEY_ID to run the live KMS check.");
+            return;
+        }
+
+        using var kms = Kms(settings);
+
+        // The other half of the swap. ReportIssuing signs the PDF's digest
+        // through IDocumentSigner, and DoctorSigningKeys enrols a doctor through
+        // FindKey -- so both have to work against the real service, not just the
+        // JWT provider that happens to share a communicator.
+        IDocumentSigner signer = new KmsDocumentSigner(kms);
+
+        var label = DoctorKeyLabel.For(doctorUserId: 1);
+
+        var point = signer.FindKey(label);
+        Assert.NotNull(point);
+
+        var digest = SHA256.HashData("a rendered report"u8.ToArray());
+        var signature = signer.SignDigest(label, digest);
+
+        Assert.Equal(2 * Pkcs11Constants.P256CoordinateBytes, signature.Length);
+
+        using var verifier = EcPoint.Verifier(point);
+        Assert.True(
+            verifier.VerifyHash(digest, signature, DSASignatureFormat.IeeeP1363FixedFieldConcatenation),
+            "The document signer produced a signature the enrolled key does not verify.");
+    }
 }
