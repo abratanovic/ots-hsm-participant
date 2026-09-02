@@ -57,7 +57,7 @@ services:
       # exercise 1 argues against. 'kms' swaps both for AWS KMS without changing a line of MedSign's
       # own code, which is the point of the demonstration -- and it does nothing
       # without credentials, so it is inert for everyone who has none.
-      Signing__Provider: ${SIGNING_PROVIDER:-hsm}
+      Signing__Provider: ${SIGNING_PROVIDER:-env}
 
       Kms__Region: ${AWS_REGION:-}
       Kms__KeyId: ${AWS_KMS_KEY_ID:-}
