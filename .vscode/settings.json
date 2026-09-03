@@ -1,0 +1,8 @@
+{
+    // The solution here is MedSign.slnx, the XML solution format. The C# extension
+    // only ever looks for *.sln and *.slnf, so it finds nothing, loads nothing, and
+    // every file opens as a loose script: no completion, no go-to-definition across
+    // files. "disable" tells it to stop looking for a solution and load the two
+    // .csproj files directly, which is all it needs.
+    "dotnet.defaultSolution": "disable"
+}

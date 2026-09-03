@@ -26,6 +26,9 @@
     <!-- Runs the real application in memory, so the endpoint exercises are
          tested over HTTP rather than by calling their handlers directly. -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <!-- HSM exercises are checked against an in-memory PKCS#11 boundary. The
+         gate must never probe or mutate the workshop device to grade code. -->
+    <PackageReference Include="Moq" Version="4.20.72" />
   </ItemGroup>
 
   <ItemGroup>

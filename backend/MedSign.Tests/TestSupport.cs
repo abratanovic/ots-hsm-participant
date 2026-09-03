@@ -169,6 +169,30 @@ public static class Exercise
         }
     }
 
+    public static TException ThrowsOrSkip<TException>(Action act) where TException : Exception
+    {
+        try
+        {
+            act();
+        }
+        catch (NotImplementedException)
+        {
+            Assert.Skip(Pending);
+            throw;
+        }
+        catch (TException expected)
+        {
+            return expected;
+        }
+        catch (Exception actual)
+        {
+            Assert.Fail($"Expected {typeof(TException).Name}, got {actual.GetType().Name}: {actual.Message}");
+        }
+
+        Assert.Fail($"Expected {typeof(TException).Name}, but no exception was thrown.");
+        throw new InvalidOperationException("Assert.Fail always throws.");
+    }
+
     public static async Task<bool> RefusedOrSkipAsync<T>(Func<Task<T?>> act) where T : class
     {
         try

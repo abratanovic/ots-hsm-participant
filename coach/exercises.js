@@ -159,5 +159,49 @@ window.MEDSIGN_EXERCISES = [
         hint: 'verify the assertion, answer every refusal identically, persist the counter, and issue the session only after that.'
       }
     ]
+  },
+  {
+    id: 9,
+    title: 'Put the signing key behind the HSM boundary',
+    file: 'Hsm/Device/HsmCommunicator.cs',
+    match: 'MedSign.Tests.ExerciseNine',
+    summary:
+      'Implement the PKCS#11 boundary without ever handling private key material. Open one ' +
+      'authenticated read/write session per operation, create a persistent non-extractable ' +
+      'P-256 key pair, find each half by its label and class, expose only the public point, ' +
+      'and ask the HSM to sign an already-computed digest. These checks use a simulated ' +
+      'PKCS#11 device: incorrect code is stopped before it can operate on the workshop HSM.',
+    steps: [
+      {
+        method: 'OpenSession',
+        match: 'MedSign.Tests.ExerciseNineOpenSession',
+        hint: 'resolve the configured PIN, select a slot with a token, open a read/write session, log in as CKU_USER, and clean up a session whose login fails.'
+      },
+      {
+        method: 'CreateKey',
+        match: 'MedSign.Tests.ExerciseNineCreateKey',
+        hint: 'generate a persistent P-256 EC pair with matching labels; permit verification on the public half and signing on a sensitive, non-extractable private half, then return only the public point.'
+      },
+      {
+        method: 'GetKey',
+        match: 'MedSign.Tests.ExerciseNineGetKey',
+        hint: 'find the public-key object by label, return null when it is absent, and otherwise return the validated public EC point.'
+      },
+      {
+        method: 'SignDigest',
+        match: 'MedSign.Tests.ExerciseNineSignDigest',
+        hint: 'find the private-key object by label, fail safely when it is absent, and pass its handle and the unchanged digest to CKM_ECDSA.'
+      },
+      {
+        method: 'FindOne',
+        match: 'MedSign.Tests.ExerciseNineFindOne',
+        hint: 'search by both CKA_LABEL and CKA_CLASS; return null for no match, the handle for exactly one, and refuse an ambiguous label before using either object.'
+      },
+      {
+        method: 'ReadPoint',
+        match: 'MedSign.Tests.ExerciseNineReadPoint',
+        hint: 'read only CKA_EC_POINT, unwrap its optional DER OCTET STRING, and reject anything that is not an uncompressed 65-byte P-256 point.'
+      }
+    ]
   }
 ];
