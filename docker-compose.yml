@@ -118,8 +118,6 @@ services:
 
   frontend:
     image: abratanov/medsign-frontend:latest
-    # Published amd64-only; without this, compose cannot pull them on Apple silicon.
-    platform: linux/amd64
     container_name: medsign-frontend
     environment:
       NGINX_PORT: ${FRONTEND_CONTAINER_PORT:-80}
@@ -134,8 +132,6 @@ services:
 
   coach:
     image: abratanov/medsign-coach:latest
-    # Published amd64-only; without this, compose cannot pull them on Apple silicon.
-    platform: linux/amd64
     container_name: medsign-coach
     environment:
       NGINX_PORT: ${COACH_CONTAINER_PORT:-80}
@@ -145,10 +141,8 @@ services:
       - "${COACH_PORT:-4300}:${COACH_CONTAINER_PORT:-80}"
     volumes:
       - ./status:/usr/share/nginx/html/status:ro
-      # The curriculum the dashboard groups tests by. The image ships the one it
-      # was built with; this is the one the exercises in this repository
-      # actually are, so it wins. Without it every exercise past the first is
-      # unmatched and falls through to Foundations.
+      # The participant repository owns the curriculum that matches its stubs
+      # and gate tests; override the fallback bundled in the coach image.
       - ./coach/exercises.js:/usr/share/nginx/html/exercises.js:ro
     restart: unless-stopped
 
