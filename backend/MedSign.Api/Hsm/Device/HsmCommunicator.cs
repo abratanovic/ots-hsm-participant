@@ -51,7 +51,7 @@ public sealed class HsmCommunicator : IDisposable
         // from _factories.MechanismFactory, and hand the public key handle it
         // gives you to ReadPoint(). Log what you generated; a key appearing on
         // the device unannounced is hard to explain later.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L29-L63
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L42-L76
         throw new NotImplementedException(
             "Exercise HSM 5/10: generate the key pair in HsmCommunicator.CreateKey.");
     }
@@ -66,7 +66,7 @@ public sealed class HsmCommunicator : IDisposable
         // GetKey(label) ?? CreateKey(label), so a null that should have been a
         // handle silently provisions a second key -- and every token signed by
         // the first one stops verifying.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L65-L69
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L78-L83
         throw new NotImplementedException(
             "Exercise HSM 4/10: look the public key up in HsmCommunicator.GetKey.");
     }
@@ -87,7 +87,7 @@ public sealed class HsmCommunicator : IDisposable
         // recorded this key as provisioned, so throw HsmUnavailableException and
         // say so; restarting will provision a new key and invalidate every token
         // the old one signed.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L72-L81
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L85-L94
         throw new NotImplementedException(
             "Exercise HSM 6/10: sign the digest in HsmCommunicator.SignDigest.");
     }
@@ -107,7 +107,7 @@ public sealed class HsmCommunicator : IDisposable
         // recoverable by guessing: MedSign addresses its key by label, so throw
         // HsmUnavailableException and tell the reader to delete the duplicates
         // with yubihsm-shell.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L83-L100
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L96-L113
         throw new NotImplementedException(
             "Exercise HSM 2/10: search the device by template in HsmCommunicator.FindOne.");
     }
@@ -126,7 +126,7 @@ public sealed class HsmCommunicator : IDisposable
         // with both, so run the bytes through it. Then call
         // EcPoint.EnsureUncompressedP256() so a wrong shape fails here, at the
         // device boundary, instead of much later as an unverifiable signature.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L102-L110
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L115-L123
         throw new NotImplementedException(
             "Exercise HSM 3/10: read the public point in HsmCommunicator.ReadPoint.");
     }
@@ -184,7 +184,7 @@ public sealed class HsmCommunicator : IDisposable
         //      as HsmUnavailableException(LoginAdvice(ex), ex) when it fails; a
         //      session left open on a failed login is one of the 16 you cannot
         //      get back.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L138-L166
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L151-L179
         throw new NotImplementedException(
             "Exercise HSM 1/10: open and log in to the session in HsmCommunicator.OpenSession.");
     }

@@ -58,7 +58,7 @@ public sealed class ReportVerification(
         // Verify the hash, not the document: VerifyHash takes the 32 bytes the
         // device signed. VerifyData would hash it again and check a signature
         // over a hash of a hash.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Reports/ReportVerification.cs#L30-L57
+        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Reports/ReportVerification.cs#L30-L60
         throw new NotImplementedException(
             "Exercise HSM 9/10: decide the outcome in ReportVerification.Check.");
     }
