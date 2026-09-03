@@ -36,7 +36,7 @@ services:
       # on this machine at the default port.
       Hsm__ConfPath: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
       HSM_CONF_PATH: ${HSM_CONF_PATH:-/tmp/yubihsm_pkcs11.conf}
-      HSM_CONNECTOR_URL: ${HSM_CONNECTOR_URL:-http://host.docker.internal:12345}
+      HSM_CONNECTOR_URL: ${HSM_CONNECTOR_URL:-http://192.168.8.20:12345}
 
       # The module reads this with getenv(), so it has to be in the real process
       # environment -- which is here, and only here. HsmCommunicator also sets it
