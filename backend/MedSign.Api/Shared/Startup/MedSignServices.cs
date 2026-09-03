@@ -93,10 +93,11 @@ public static class MedSignServices
         switch (provider.Trim().ToLowerInvariant())
         {
             case SigningProviders.Env:
-                // The key in an environment variable anyone can read -- which is
-                // the point exercise 1 makes, and why this is no longer the default.
+                // Both keys in software: the session key in an environment variable,
+                // the doctors' keys in files beside the database. Readable by anyone
+                // who can read the disk, which is the point the HSM exercises answer.
                 services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
-                services.AddSingleton<IDocumentSigner, HsmDocumentSigner>();
+                services.AddSingleton<IDocumentSigner, EnvDocumentSigner>();
                 break;
 
             case SigningProviders.Hsm:
