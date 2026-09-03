@@ -141,6 +141,9 @@ services:
       - "${COACH_PORT:-4300}:${COACH_CONTAINER_PORT:-80}"
     volumes:
       - ./status:/usr/share/nginx/html/status:ro
+      # The participant repository owns the curriculum that matches its stubs
+      # and gate tests; override the fallback bundled in the coach image.
+      - ./coach/exercises.js:/usr/share/nginx/html/exercises.js:ro
     restart: unless-stopped
 
 volumes:

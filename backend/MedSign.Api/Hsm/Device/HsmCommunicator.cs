@@ -10,15 +10,28 @@ public sealed class HsmCommunicator : IDisposable
     private readonly HsmOptions _options;
     private readonly ILogger<HsmCommunicator> _log;
     private readonly Pkcs11InteropFactories _factories = new();
+    private readonly Func<IPkcs11Library>? _libraryForTests;
+    private readonly Func<string>? _pinForTests;
     private readonly Lock _gate = new();
 
     private IPkcs11Library? _library;
     private bool _disposed;
 
     public HsmCommunicator(IOptions<HsmOptions> options, ILogger<HsmCommunicator> log)
+        : this(options, log, null, null)
+    {
+    }
+
+    internal HsmCommunicator(
+        IOptions<HsmOptions> options,
+        ILogger<HsmCommunicator> log,
+        Func<IPkcs11Library>? libraryForTests,
+        Func<string>? pinForTests)
     {
         _options = options.Value;
         _log = log;
+        _libraryForTests = libraryForTests;
+        _pinForTests = pinForTests;
 
         if (_options.ConfPath is { Length: > 0 } conf)
         {
@@ -137,7 +150,7 @@ public sealed class HsmCommunicator : IDisposable
 
     private ISession OpenSession()
     {
-        var pin = _options.ResolvePin();
+        var pin = _pinForTests?.Invoke() ?? _options.ResolvePin();
         if (pin is not { Length: > 0 })
         {
             throw new HsmUnavailableException(
@@ -188,6 +201,11 @@ public sealed class HsmCommunicator : IDisposable
             if (_library is not null)
             {
                 return _library;
+            }
+
+            if (_libraryForTests is not null)
+            {
+                return _library = _libraryForTests();
             }
 
             if (_options.ModulePath is not { Length: > 0 })
