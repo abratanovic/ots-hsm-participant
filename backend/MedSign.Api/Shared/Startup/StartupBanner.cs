@@ -1,4 +1,5 @@
 using MedSign.Api.Shared;
+using MedSign.Api.Cloud.Kms;
 using MedSign.Api.Tokens;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,13 +20,19 @@ public static class StartupBanner
         Console.WriteLine($"  Accounts       : {db.Users.AsNoTracking().Count()} registered");
         Console.WriteLine($"  Signing        : {provider.Name}");
 
-        if (provider is EnvJwtSigningProvider)
+        switch (provider)
         {
-            PrintLocalKey();
-        }
-        else
-        {
-            PrintHsm(app.Configuration.GetSection("Hsm"));
+            case EnvJwtSigningProvider:
+                PrintLocalKey();
+                break;
+
+            case KmsJwtSigningProvider:
+                PrintKms(app.Configuration.GetSection("Kms"));
+                break;
+
+            default:
+                PrintHsm(app.Configuration.GetSection("Hsm"));
+                break;
         }
 
         PrintSigningKey(key, services.GetRequiredService<SigningKeyStatus>());
@@ -37,6 +44,20 @@ public static class StartupBanner
     {
         Console.WriteLine($"  Key source     : {EnvJwtSigningProvider.KeyVariable} (environment)");
         Console.WriteLine("                   Anyone who can read that variable can mint a doctor token.");
+    }
+
+    private static void PrintKms(IConfiguration kms)
+    {
+        var credentials = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID"));
+        var session = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_SESSION_TOKEN"));
+        var keyId = kms["KeyId"];
+
+        Console.WriteLine($"  Region         : {kms["Region"]}");
+        Console.WriteLine($"  Key            : {(string.IsNullOrEmpty(keyId) ? "alias per label" : keyId)}");
+        Console.WriteLine($"  Credentials    : {(credentials
+            ? session ? "set (session token, so it expires)" : "set"
+            : "NOT SET -- set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")}");
+        Console.WriteLine("                   The YubiHSM is not in this picture at all.");
     }
 
     private static void PrintHsm(IConfiguration hsm)

@@ -8,16 +8,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedSign.Api.Hsm.Reports;
 
-// Where the device work in Hsm/Device becomes a signed document. HsmCommunicator
-// taught the token to hold a key and sign 32 bytes with it; this class decides
-// which 32 bytes, and what has to be true of the row it stores beside them.
-//
-// The contract is not written here -- it is written in ReportVerification.Check,
-// Exercise HSM 9/10, which reads back everything this method stores. The two
-// have to agree exactly, so read that exercise alongside this one. Anything
-// Issue records that Check cannot reproduce comes back as file-modified or
-// signature-invalid, and it comes back that way for every report ever issued,
-// not just the next one.
 public sealed class ReportIssuing(
     MedSignDb db,
     IDocumentSigner signer,
@@ -27,47 +17,65 @@ public sealed class ReportIssuing(
 {
     public MedicalReport Issue(int doctorUserId, IssueReport request)
     {
-        // TODO HSM 8/10: Render the report to a PDF, sign it on the HSM, and
-        // store the row that lets anyone verify it later.
-        //
-        // Validate first, with the Read* helpers below: ReadType(request.Type),
-        // ReadBody(request.Body), ReadPatient(request.PatientId). Load the
-        // doctor from db.Users with .Include(user => user.SigningKey) -- one
-        // query, because you need the key, not just the id -- and refuse the
-        // request when that key is null: signing is not enabled for the account,
-        // and MedSign does not keep unsigned reports.
-        //
-        // Then, in this order, and the order is the exercise:
-        //
-        //   1. Mint a Guid publicId and take clock.GetUtcNow() once. Both go in
-        //      the PDF and in the row, so they have to be the same values in
-        //      both.
-        //   2. ReportDocument.Render(new ReportContent(...)) -- the exact bytes
-        //      you are about to sign. Render once and keep the array; rendering
-        //      twice is not guaranteed to give you the same bytes, and then the
-        //      signature covers a document nobody has.
-        //   3. storage.Write(publicId, pdf).
-        //   4. SHA256.HashData(pdf). You sign the digest, not the document: the
-        //      HSM round-trips 32 bytes, not a megabyte of PDF.
-        //   5. Build the MedicalReport. Sha256 is Convert.ToHexStringLower(digest)
-        //      -- Check compares that string literally. Signature is
-        //      signer.SignDigest(key.KeyLabel, digest), the raw r||s pair from
-        //      Exercise HSM 6/10, which is what Check hands to VerifyHash as
-        //      IeeeP1363FixedFieldConcatenation. Record SigningKeyId too: a
-        //      signature nobody can attribute to a key verifies as
-        //      unknown-signer. FileName comes from DownloadName.For(...) and
-        //      FileSizeBytes from the rendered array.
-        //   6. db.MedicalReports.Add(report), db.SaveChanges(), return it.
-        //
-        // Steps 3 to 6 are two stores that have to agree -- a file on disk and a
-        // row in the database -- and only one of them is transactional. Wrap
-        // them so that any failure after the write calls Discard(publicId) and
-        // rethrows. A PDF on disk with no row referencing it is a leak nobody
-        // will ever notice; get the ordering wrong the other way and you have a
-        // row pointing at a file that was never written.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Reports/ReportIssuing.cs#L18-L79
-        throw new NotImplementedException(
-            "Exercise HSM 8/10: sign and store the report in ReportIssuing.Issue.");
+        var type = ReadType(request.Type);
+        var body = ReadBody(request.Body);
+
+        var doctor = db.Users
+            .Include(user => user.SigningKey)
+            .SingleOrDefault(user => user.Id == doctorUserId)
+            ?? throw new InvalidOperationException(
+                $"There is no account {doctorUserId} to issue a report from.");
+
+        var key = doctor.SigningKey
+            ?? throw new InvalidOperationException(
+                "Document signing is not enabled for this account, so there is no key to sign a "
+                + "report with. Enable signing first: it generates a key for you on the HSM, and "
+                + "MedSign does not keep unsigned reports.");
+
+        var patient = ReadPatient(request.PatientId);
+
+        var publicId = Guid.NewGuid();
+        var issuedAt = clock.GetUtcNow();
+
+        var pdf = ReportDocument.Render(new ReportContent(
+            issuedAt, doctor.DisplayName, patient.DisplayName, ReportTypes.Describe(type), body));
+
+        storage.Write(publicId, pdf);
+
+        try
+        {
+            var digest = SHA256.HashData(pdf);
+
+            var report = new MedicalReport
+            {
+                PublicId = publicId,
+                IssuedAt = issuedAt,
+                Type = type,
+                Body = body,
+                DoctorUserId = doctor.Id,
+                Doctor = doctor,
+                PatientUserId = patient.Id,
+                Patient = patient,
+                FileName = DownloadName.For(type, issuedAt, patient.DisplayName),
+                FileSizeBytes = pdf.LongLength,
+                Sha256 = Convert.ToHexStringLower(digest),
+
+                Signature = signer.SignDigest(key.KeyLabel, digest),
+                SigningKeyId = key.Id,
+                SigningKey = key,
+            };
+
+            db.MedicalReports.Add(report);
+            db.SaveChanges();
+
+            return report;
+        }
+        catch
+        {
+            Discard(publicId);
+
+            throw;
+        }
     }
 
     private void Discard(Guid publicId)

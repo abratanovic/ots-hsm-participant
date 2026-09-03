@@ -30,7 +30,7 @@ public sealed class HsmCommunicator : IDisposable
 
     public byte[] CreateKey(string label)
     {
-        // TODO HSM 5/10: Generate a P-256 (secp256r1) key pair on the device and
+        // TODO HSM 2/8: Generate a P-256 (secp256r1) key pair on the device and
         // return the public point.
         //
         // Run the work through Execute(session => ...) so you are handed a live
@@ -58,7 +58,7 @@ public sealed class HsmCommunicator : IDisposable
 
     public byte[]? GetKey(string label)
     {
-        // TODO HSM 4/10: Return the public point of the public key stored under
+        // TODO HSM 5/8: Return the public point of the public key stored under
         // this label, or null when the device is not holding one.
         //
         // Run it through Execute(), find the CKO_PUBLIC_KEY with FindOne(), and
@@ -73,7 +73,7 @@ public sealed class HsmCommunicator : IDisposable
 
     public byte[] SignDigest(string label, byte[] digest)
     {
-        // TODO HSM 6/10: Sign an already-hashed 32-byte digest with the private
+        // TODO HSM 6/8: Sign an already-hashed 32-byte digest with the private
         // key stored under this label.
         //
         // Run it through Execute(), find the CKO_PRIVATE_KEY with FindOne(), and
@@ -94,7 +94,7 @@ public sealed class HsmCommunicator : IDisposable
 
     private IObjectHandle? FindOne(ISession session, string label, CKO objectClass)
     {
-        // TODO HSM 2/10: Return the one object of this class carrying this label,
+        // TODO HSM 3/8: Return the one object of this class carrying this label,
         // or null when there is none.
         //
         // PKCS#11 has no lookup-by-name. You search by attribute template:
@@ -114,7 +114,7 @@ public sealed class HsmCommunicator : IDisposable
 
     private static byte[] ReadPoint(ISession session, IObjectHandle publicKey)
     {
-        // TODO HSM 3/10: Read CKA_EC_POINT off this public key handle and return
+        // TODO HSM 4/8: Read CKA_EC_POINT off this public key handle and return
         // it as a 65-byte uncompressed P-256 point (0x04 || X || Y).
         //
         // session.GetAttributeValue(handle, [CKA.CKA_EC_POINT]) gives you a list
@@ -159,7 +159,7 @@ public sealed class HsmCommunicator : IDisposable
 
     private ISession OpenSession()
     {
-        // TODO HSM 1/10: Return a session that is open and logged in, freshly,
+        // TODO HSM 1/8: Return a session that is open and logged in, freshly,
         // for one operation. Start here -- nothing else in this class runs until
         // it works. Close() below is the other half of the exercise.
         //
@@ -191,21 +191,16 @@ public sealed class HsmCommunicator : IDisposable
 
     private static void Close(ISession session)
     {
-        // TODO HSM 1/10, second half: Give this session back to the device.
-        //
-        // Log out, then dispose. A logout that throws Pkcs11Exception is not
-        // worth propagating -- the session is being closed either way, and a
-        // failed logout usually means the device had already reclaimed it -- so
-        // swallow that one and dispose regardless.
-        //
-        // Execute calls this in a finally, so it runs even when the work threw.
-        // Leaving it unimplemented is survivable for a single participant, since
-        // the device reclaims idle sessions after about 30 seconds. It is not
-        // survivable for a room of them: you will meet CKR_SESSION_COUNT and the
-        // 16-session limit within a minute.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L168-L180
-        throw new NotImplementedException(
-            "Exercise HSM 1/10: close the session in HsmCommunicator.Close.");
+        try
+        {
+            session.Logout();
+        }
+        catch (Pkcs11Exception)
+        {
+            // The session is being closed either way; a failed logout says it was already gone.
+        }
+
+        session.Dispose();
     }
 
     private IPkcs11Library Library()
@@ -251,17 +246,16 @@ public sealed class HsmCommunicator : IDisposable
 
     public void Dispose()
     {
-        // TODO HSM 7/10: Give the device back what this instance is holding.
-        //
-        // Sessions are Close()d as they finish, so what is left here is the
-        // native library. Under _gate, and only once: return early if _disposed
-        // is already set, dispose and null _library, then set _disposed -- which
-        // is what makes the ObjectDisposedException guards in Execute and
-        // Library() fire instead of a native crash.
-        //
-        // Leaving this empty is survivable, which is why it does not throw. It
-        // still leaks a loaded PKCS#11 module on every host restart, and the
-        // sessions those hosts opened count against the device's 16.
-        // Solution: https://github.com/blockchain-lab-um/ots-hsm-participant/blob/solution/backend/MedSign.Api/Hsm/Device/HsmCommunicator.cs#L223-L236
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _library?.Dispose();
+            _library = null;
+            _disposed = true;
+        }
     }
 }

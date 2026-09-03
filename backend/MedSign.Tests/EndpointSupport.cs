@@ -49,6 +49,11 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
     {
         builder.UseSetting(EnvJwtSigningProvider.KeyVariable, Build.SigningKey);
 
+        // Before the Settings loop, so a test that means to exercise the selector
+        // still can -- but a stray Signing__Provider in someone's shell cannot
+        // quietly point the whole suite at AWS.
+        builder.UseSetting("Signing:Provider", SigningProviders.Env);
+
         builder.UseSetting("ConnectionStrings:MedSign", ConnectionString);
         builder.UseSetting("Storage:Root", StorageRoot);
         builder.UseSetting("Passkey:RpId", RpId);
@@ -72,6 +77,9 @@ public sealed class MedSignHost : WebApplicationFactory<Program>
             services.RemoveAll<IDocumentSigner>();
             services.AddSingleton<IDocumentSigner>(Hsm);
 
+            // Whatever configuration ends up saying, the tests sign in this
+            // process. No test may open a socket to AWS: not on the workshop
+            // Wi-Fi, not on a participant's laptop, not on a plane.
             services.RemoveAll<IJwtSigningProvider>();
             services.AddSingleton<IJwtSigningProvider, EnvJwtSigningProvider>();
         });
